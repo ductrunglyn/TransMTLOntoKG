@@ -50,7 +50,11 @@ SEED       = 42
 # ───────────────────────── 3. ONTOKG ──────────────────────────────────────
 # True  -> bật OntoKG: cần Neo4j đang chạy, sẽ chạy module1-8 để dựng KG.
 # False -> baseline TransMTL thuần (KHÔNG cần Neo4j). Mặc định baseline.
-USE_ONTOKG = _env("USE_ONTOKG", "0").lower() in ("1", "true", "yes", "on")
+# ════════════════ BẬT / TẮT ONTOKG — SỬA NGAY TẠI ĐÂY ════════════════
+#   False = baseline TransMTL thuần  (KHÔNG cần Neo4j, KHÔNG cần run_ontokg.py)
+#   True  = TransMTL + OntoKG         (cần Neo4j + đã chạy run_ontokg.py trước)
+# Đây là công tắc thường: chỉ cần đổi True/False. Không phụ thuộc biến môi trường.
+USE_ONTOKG = False
 
 NEO4J_URI      = _env("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER     = _env("NEO4J_USER", "neo4j")
