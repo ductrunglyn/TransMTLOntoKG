@@ -32,7 +32,7 @@ if __name__ == "__main__":
     P.ensure_dirs()
     # Bước 1 luôn xây OntoKG đầy đủ (gồm Module 8 nạp Neo4j) => ép use_ontokg=True.
     # skip_existing=True để chạy lại sẽ tiếp tục từ module còn dở, không làm lại từ đầu.
-    args = make_args(use_ontokg=True, skip_existing=True)
+    args = make_args(use_ontokg=True, skip_existing=True, cfg_module=P)
 
     t0 = time.time()
     stage_split(args)     # tạo data_split/ nếu chưa có

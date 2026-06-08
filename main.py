@@ -37,17 +37,23 @@ from split_dataset import split_dataset
 # Tạo "args" mặc định từ pipeline_config (dùng cho run_ontokg.py / run_transmtl.py)
 # ──────────────────────────────────────────────────────────
 def make_args(stage="all", use_ontokg=None, skip_existing=False,
-              data_csv=None, pretrained_vec=None, save_path=None, neo4j_pass=None):
+              data_csv=None, pretrained_vec=None, save_path=None, neo4j_pass=None,
+              cfg_module=None):
+    """Tạo 'args' từ một module config. Mặc định dùng pipeline_config, nhưng
+    run_transmtl.py / run_ontokg.py có thể truyền config khác (vd baseline)
+    qua cfg_module — config đó sẽ đi xuyên suốt mọi giai đoạn qua args.P."""
+    Pc = cfg_module or P
     if use_ontokg is None:
-        use_ontokg = P.USE_ONTOKG
+        use_ontokg = Pc.USE_ONTOKG
     return SimpleNamespace(
         stage=stage,
         use_ontokg=use_ontokg,
         skip_existing=skip_existing,
-        data_csv=data_csv or P.RAW_DATA_CSV,
-        pretrained_vec=pretrained_vec or P.PRETRAINED_VEC,
-        save_path=save_path or P.SAVE_PATH,
-        neo4j_pass=neo4j_pass or P.NEO4J_PASSWORD,
+        data_csv=data_csv or Pc.RAW_DATA_CSV,
+        pretrained_vec=pretrained_vec or Pc.PRETRAINED_VEC,
+        save_path=save_path or Pc.SAVE_PATH,
+        neo4j_pass=neo4j_pass or Pc.NEO4J_PASSWORD,
+        P=Pc,
     )
 
 
@@ -72,11 +78,11 @@ def run_module(script: str, env: dict, output_path: str = None, skip_existing: b
 # ──────────────────────────────────────────────────────────
 def stage_split(args):
     print("\n" + "=" * 64 + "\n[A] CHIA DỮ LIỆU TRAIN/VAL/TEST\n" + "=" * 64)
-    if args.skip_existing and os.path.exists(P.TRAINVAL_CSV):
-        print(f"--- Bỏ qua split (đã có {P.TRAINVAL_CSV})")
+    if args.skip_existing and os.path.exists(args.P.TRAINVAL_CSV):
+        print(f"--- Bỏ qua split (đã có {args.P.TRAINVAL_CSV})")
         return
-    split_dataset(args.data_csv, P.SPLIT_DIR,
-                  val_ratio=P.VAL_RATIO, test_ratio=P.TEST_RATIO, seed=P.SEED)
+    split_dataset(args.data_csv, args.P.SPLIT_DIR,
+                  val_ratio=args.P.VAL_RATIO, test_ratio=args.P.TEST_RATIO, seed=args.P.SEED)
 
 
 # ──────────────────────────────────────────────────────────
@@ -84,16 +90,16 @@ def stage_split(args):
 # ──────────────────────────────────────────────────────────
 def stage_ontokg(args):
     print("\n" + "=" * 64 + "\n[B] XÂY ONTOKG (Module 1-8) trên trainval\n" + "=" * 64)
-    if not os.path.exists(P.TRAINVAL_CSV):
-        print(f"!!! Chưa có {P.TRAINVAL_CSV}. Hãy chạy stage split trước.")
+    if not os.path.exists(args.P.TRAINVAL_CSV):
+        print(f"!!! Chưa có {args.P.TRAINVAL_CSV}. Hãy chạy stage split trước.")
         sys.exit(1)
 
-    env = P.ontokg_env()
+    env = args.P.ontokg_env()
     env["NEO4J_PASSWORD"] = args.neo4j_pass   # cho phép CLI override
 
-    for script in P.ONTOKG_MODULES:
+    for script in args.P.ONTOKG_MODULES:
         run_module(script, env,
-                   output_path=P.ONTOKG_MODULE_OUTPUTS.get(script),
+                   output_path=args.P.ONTOKG_MODULE_OUTPUTS.get(script),
                    skip_existing=args.skip_existing)
 
     if args.use_ontokg:
@@ -111,9 +117,9 @@ def _ontokg_kwargs(args):
                     neo4j_uri=None, neo4j_pass=None)
     return dict(
         use_ontokg=True,
-        entity_emb_path=P.ENTITY_EMB,
-        entity_idx_path=P.ENTITY_IDX_JSON,
-        neo4j_uri=P.NEO4J_URI,
+        entity_emb_path=args.P.ENTITY_EMB,
+        entity_idx_path=args.P.ENTITY_IDX_JSON,
+        neo4j_uri=args.P.NEO4J_URI,
         neo4j_pass=args.neo4j_pass,
     )
 
@@ -127,7 +133,7 @@ def stage_train(args):
     from train_v2 import train_model
 
     train_model(
-        P.TRAIN_DATA_CSV, args.save_path, cfg.PAD_IDX, cfg.LABEL_SMOOTHING,
+        args.P.TRAIN_DATA_CSV, args.save_path, cfg.PAD_IDX, cfg.LABEL_SMOOTHING,
         args.pretrained_vec, cfg.NUM_LAYER, cfg.D_MODEL, cfg.NUM_HEADS, cfg.DFF,
         cfg.LEN_IN, cfg.LEN_OUT, cfg.DROPOUT, cfg.FREEZE_EMBEDDINGS,
         cfg.MMOE_NUM_EXPERTS, cfg.MMOE_EXPERT_HIDDEN, cfg.MMOE_GATE_HIDDEN,
@@ -152,7 +158,7 @@ def stage_test(args):
         sys.exit(1)
 
     run_test(
-        args.save_path, P.TEST_DATA_CSV, cfg.LEN_IN, cfg.LEN_OUT, cfg.NUM_WORKERS,
+        args.save_path, args.P.TEST_DATA_CSV, cfg.LEN_IN, cfg.LEN_OUT, cfg.NUM_WORKERS,
         cfg.BATCH_SIZE, cfg.D_MODEL, cfg.PAD_IDX, args.pretrained_vec,
         cfg.NUM_LAYER, cfg.NUM_HEADS, cfg.DFF, cfg.DROPOUT, cfg.FREEZE_EMBEDDINGS,
         cfg.MMOE_NUM_EXPERTS, cfg.MMOE_EXPERT_HIDDEN, cfg.MMOE_GATE_HIDDEN,
@@ -181,6 +187,7 @@ def main():
     ap.add_argument("--no-ontokg", dest="use_ontokg", action="store_false")
     ap.set_defaults(use_ontokg=None)   # None => lấy từ pipeline_config.USE_ONTOKG
     args = ap.parse_args()
+    args.P = P   # main.py luôn dùng pipeline_config mặc định
 
     if args.use_ontokg is None:
         args.use_ontokg = P.USE_ONTOKG

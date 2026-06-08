@@ -30,8 +30,9 @@ from main import make_args, stage_split, stage_train, stage_test
 
 if __name__ == "__main__":
     P.ensure_dirs()
-    # use_ontokg lấy theo pipeline_config.USE_ONTOKG.
-    args = make_args(skip_existing=True)
+    # cfg_module=P để TOÀN BỘ cấu hình (kể cả USE_ONTOKG, đường dẫn) lấy từ
+    # đúng file bạn import ở trên — đổi import sang config khác là ăn ngay.
+    args = make_args(skip_existing=True, cfg_module=P)
 
     mode = "TransMTL + OntoKG" if args.use_ontokg else "baseline TransMTL"
     print(f"Chế độ: {mode}  (đổi bằng USE_ONTOKG trong pipeline_config.py)")
