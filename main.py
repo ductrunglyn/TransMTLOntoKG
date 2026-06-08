@@ -26,10 +26,29 @@ import sys
 import time
 import argparse
 import subprocess
+from types import SimpleNamespace
 
 import conf as cfg
 import pipeline_config as P
 from split_dataset import split_dataset
+
+
+# ──────────────────────────────────────────────────────────
+# Tạo "args" mặc định từ pipeline_config (dùng cho run_ontokg.py / run_transmtl.py)
+# ──────────────────────────────────────────────────────────
+def make_args(stage="all", use_ontokg=None, skip_existing=False,
+              data_csv=None, pretrained_vec=None, save_path=None, neo4j_pass=None):
+    if use_ontokg is None:
+        use_ontokg = P.USE_ONTOKG
+    return SimpleNamespace(
+        stage=stage,
+        use_ontokg=use_ontokg,
+        skip_existing=skip_existing,
+        data_csv=data_csv or P.RAW_DATA_CSV,
+        pretrained_vec=pretrained_vec or P.PRETRAINED_VEC,
+        save_path=save_path or P.SAVE_PATH,
+        neo4j_pass=neo4j_pass or P.NEO4J_PASSWORD,
+    )
 
 
 # ──────────────────────────────────────────────────────────
