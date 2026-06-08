@@ -1,1 +1,3 @@
 vocab_subword/corpus.txt
+__pycache__/
+*.pyc

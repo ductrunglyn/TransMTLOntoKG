@@ -574,11 +574,16 @@ def preprocess_records(
 
 
 if __name__ == "__main__":
+    import os
     no_pos = False
     include_summary_in_full_text = True
-    input_csv = r"/home/hoangtrung/hdtrungoi/CoKhanh/TransMTL_OntoKG/data_split/trainval.csv"
-    output_jsonl = "./data/preprocessed_articles.jsonl"
-    error_log_jsonl = "./data/preprocess_errors.jsonl"
+    DATA = os.environ.get("OKG_DATA_DIR", "./data")
+    input_csv = os.environ.get(
+        "OKG_INPUT_CSV",
+        r"/home/hoangtrung/hdtrungoi/CoKhanh/TransMTL_OntoKG/data_split/trainval.csv",
+    )
+    output_jsonl = os.path.join(DATA, "preprocessed_articles.jsonl")
+    error_log_jsonl = os.path.join(DATA, "preprocess_errors.jsonl")
 
     pre = Module1Preprocessor(
         use_pos=not no_pos,

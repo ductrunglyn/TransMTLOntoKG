@@ -575,19 +575,22 @@ class Module3EntityLinker:
 # MAIN
 # ──────────────────────────────────────────────────────────
 if __name__ == "__main__":
+    import os
+    DATA = os.environ.get("OKG_DATA_DIR", "./data")
+    device = os.environ.get("OKG_DEVICE", "cuda")
     linker = Module3EntityLinker(
         embedding_model="vinai/phobert-base-v2",
-        device="cuda",
-        wikidata_cache_path="./data/wikidata_cache.json",
+        device=device,
+        wikidata_cache_path=os.path.join(DATA, "wikidata_cache.json"),
         similarity_threshold=0.92,
         use_wikidata=True,
         use_embedding_matching=True,
     )
 
     linker.link_all(
-        input_jsonl="./data/module2_ner_concept.jsonl",
-        output_jsonl="./data/module3_entity_linked.jsonl",
-        registry_pkl="./data/entity_registry.pkl",
-        wikidata_cache_json="./data/wikidata_cache.json",
+        input_jsonl=os.path.join(DATA, "module2_ner_concept.jsonl"),
+        output_jsonl=os.path.join(DATA, "module3_entity_linked.jsonl"),
+        registry_pkl=os.path.join(DATA, "entity_registry.pkl"),
+        wikidata_cache_json=os.path.join(DATA, "wikidata_cache.json"),
         save_every=500,
     )

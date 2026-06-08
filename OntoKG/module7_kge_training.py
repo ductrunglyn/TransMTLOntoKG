@@ -560,6 +560,9 @@ def get_entity_embedding(
 # MAIN
 # ──────────────────────────────────────────────────────────
 if __name__ == "__main__":
+    import os
+    DATA = os.environ.get("OKG_DATA_DIR", "./data")
+    device = os.environ.get("OKG_DEVICE", "cuda")
     trainer = Module7KGETrainer(
         kge_model="TransE",
         kge_dim=256,          # train efficient
@@ -569,19 +572,19 @@ if __name__ == "__main__":
         lr=0.001,
         margin=1.0,
         combine_alpha=0.5,    # 50% KGE + 50% PhoBERT surface
-        device="cuda",
+        device=device,
     )
 
     trainer.train(
-        triples_tsv="./data/kg/pykeen_triples.tsv",
-        entity_index_pkl="./data/kg/entity_index.pkl",
-        output_dir="./data/kge",
+        triples_tsv=os.path.join(DATA, "kg", "pykeen_triples.tsv"),
+        entity_index_pkl=os.path.join(DATA, "kg", "entity_index.pkl"),
+        output_dir=os.path.join(DATA, "kge"),
     )
 
     # Verify output
     emb_matrix, uri_to_idx = load_entity_embeddings(
-        "./data/kge/entity_embeddings.pt",
-        "./data/kge/entity_to_idx.json",
+        os.path.join(DATA, "kge", "entity_embeddings.pt"),
+        os.path.join(DATA, "kge", "entity_to_idx.json"),
     )
     print(f"\nVerify: entity_embeddings.pt shape = {tuple(emb_matrix.shape)}")
     print(f"        Số URI trong index           = {len(uri_to_idx):,}")

@@ -1172,9 +1172,11 @@ def load_ontology_concepts(path: Union[str, Path]) -> List[Dict[str, Any]]:
 # MAIN
 # =========================================================
 if __name__ == "__main__":
-    input_jsonl = "./data/preprocessed_articles.jsonl"
-    output_jsonl = "./data/module2_ner_concept.jsonl"
-    error_log_jsonl = "./data/module2_errors.jsonl"
+    import os
+    DATA = os.environ.get("OKG_DATA_DIR", "./data")
+    input_jsonl = os.path.join(DATA, "preprocessed_articles.jsonl")
+    output_jsonl = os.path.join(DATA, "module2_ner_concept.jsonl")
+    error_log_jsonl = os.path.join(DATA, "module2_errors.jsonl")
 
     ontology_concepts_path = None
     ontology_concepts = []

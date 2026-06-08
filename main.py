@@ -1,35 +1,24 @@
 # main.py
 """
 ==========================================================================
- PIPELINE END-TO-END: TransMTL + OntoKG
+ PIPELINE END-TO-END: TransMTL + OntoKG  —  CHẠY TẤT CẢ BẰNG 1 LỆNH
 ==========================================================================
-Điều phối TOÀN BỘ quy trình trong 1 file, theo 4 giai đoạn:
+Toàn bộ cấu hình (đường dẫn dữ liệu, Neo4j, bật/tắt OntoKG) nằm ở
+`pipeline_config.py`; hyperparameter model nằm ở `conf.py`. Sửa 2 file đó
+là đủ, KHÔNG cần chỉnh path trong từng module nữa.
 
-  [A] CHIA DỮ LIỆU      : CSV gốc -> train/val/test/trainval
-  [B] XÂY ONTOKG        : Module 1-7 trên trainval -> entity_embeddings.pt
-                          Module 8 -> nạp vào Neo4j
-  [C] TRAIN TransMTL    : trên trainval, truy vấn Neo4j qua Module 9
-                          (đóng băng sau khi hội tụ)
-  [D] TEST              : offline batch  + streaming (Module 10)
+4 giai đoạn:
+  [A] split  : CSV gốc          -> data_split/{train,val,test,trainval}.csv
+  [B] ontokg : module 1-7 (+8)  -> data/kge/entity_embeddings.pt + nạp Neo4j
+  [C] train  : TransMTL trên trainval (truy vấn Neo4j qua module 9 nếu bật KG)
+  [D] test   : đánh giá ROUGE / keyphrase trên tập held-out
 
 Cách dùng:
-  # Chạy hết, CÓ OntoKG
-  python main.py --stage all --use_ontokg --neo4j_pass password
-
-  # Ablation baseline (KHÔNG OntoKG)
-  python main.py --stage all
-
-  # Chạy từng giai đoạn
-  python main.py --stage split
-  python main.py --stage ontokg --use_ontokg --neo4j_pass password
-  python main.py --stage train  --use_ontokg --neo4j_pass password
-  python main.py --stage test   --use_ontokg --neo4j_pass password
-
-Yêu cầu thư mục làm việc chứa:
-  module1_preprocess.py ... module10_streaming_inference.py
-  TransMTL_v2.py, train_v2.py, testing_v2.py, data_utils.py,
-  preprocessing.py, conf.py, ontokg_fusion.py, ontokg_data_bridge.py,
-  split_dataset.py
+  python main.py                       # chạy hết theo pipeline_config.py
+  python main.py --use-ontokg          # bật OntoKG cho lần chạy này
+  python main.py --no-ontokg           # ép baseline cho lần chạy này
+  python main.py --stage train         # chỉ 1 giai đoạn: split|ontokg|train|test
+  python main.py --skip-existing       # bỏ qua bước đã có output (resume)
 ==========================================================================
 """
 import os
@@ -39,14 +28,17 @@ import argparse
 import subprocess
 
 import conf as cfg
+import pipeline_config as P
 from split_dataset import split_dataset
 
 
 # ──────────────────────────────────────────────────────────
-# Tiện ích chạy script con (Module 1-8) tuần tự
+# Tiện ích chạy 1 module python con (Module 1-8) qua subprocess
 # ──────────────────────────────────────────────────────────
-def run_module(script: str, env: dict = None):
-    """Chạy 1 module python, dừng pipeline nếu lỗi."""
+def run_module(script: str, env: dict, output_path: str = None, skip_existing: bool = False):
+    if skip_existing and output_path and os.path.exists(output_path):
+        print(f"--- Bỏ qua {script} (đã có {output_path})")
+        return
     print(f"\n>>> Chạy {script} ...")
     t0 = time.time()
     result = subprocess.run([sys.executable, script], env=env)
@@ -60,65 +52,63 @@ def run_module(script: str, env: dict = None):
 # [A] Chia dữ liệu
 # ──────────────────────────────────────────────────────────
 def stage_split(args):
-    print("\n" + "=" * 64)
-    print("[A] CHIA DỮ LIỆU TRAIN/VAL/TEST")
-    print("=" * 64)
-    split_dataset(args.data_csv, args.split_dir,
-                  val_ratio=0.2, test_ratio=0.2, seed=42)
+    print("\n" + "=" * 64 + "\n[A] CHIA DỮ LIỆU TRAIN/VAL/TEST\n" + "=" * 64)
+    if args.skip_existing and os.path.exists(P.TRAINVAL_CSV):
+        print(f"--- Bỏ qua split (đã có {P.TRAINVAL_CSV})")
+        return
+    split_dataset(args.data_csv, P.SPLIT_DIR,
+                  val_ratio=P.VAL_RATIO, test_ratio=P.TEST_RATIO, seed=P.SEED)
 
 
 # ──────────────────────────────────────────────────────────
-# [B] Xây OntoKG (Module 1-8) trên trainval
+# [B] Xây OntoKG (Module 1-7, +8 nếu bật KG) trên trainval
 # ──────────────────────────────────────────────────────────
 def stage_ontokg(args):
-    print("\n" + "=" * 64)
-    print("[B] XÂY ONTOKG (Module 1-8) trên trainval")
-    print("=" * 64)
+    print("\n" + "=" * 64 + "\n[B] XÂY ONTOKG (Module 1-8) trên trainval\n" + "=" * 64)
+    if not os.path.exists(P.TRAINVAL_CSV):
+        print(f"!!! Chưa có {P.TRAINVAL_CSV}. Hãy chạy stage split trước.")
+        sys.exit(1)
 
-    # Truyền đường dẫn trainval cho Module 1 qua biến môi trường
-    env = os.environ.copy()
-    env["ONTOKG_INPUT_CSV"] = os.path.join(args.split_dir, "trainval.csv")
-    env["NEO4J_PASSWORD"]   = args.neo4j_pass
+    env = P.ontokg_env()
+    env["NEO4J_PASSWORD"] = args.neo4j_pass   # cho phép CLI override
 
-    # Module 1-7: trích xuất + KGE
-    for m in [
-        "OntoKG/module1_preprocess.py",
-        "OntoKG/module2_ner_concept.py",
-        "OntoKG/module3_entity_linking.py",
-        "OntoKG/module4_relation_extraction.py",
-        "OntoKG/module5_kg_construction.py",
-        "OntoKG/module6_ontology_learning.py",
-        "OntoKG/module7_kge_training.py",
-    ]:
-        run_module(m, env)
+    for script in P.ONTOKG_MODULES:
+        run_module(script, env,
+                   output_path=P.ONTOKG_MODULE_OUTPUTS.get(script),
+                   skip_existing=args.skip_existing)
 
-    # Module 8: nạp Neo4j (chỉ khi dùng OntoKG)
     if args.use_ontokg:
-        run_module("OntoKG/module8_neo4j_loader.py", env)
+        run_module("OntoKG/module8_neo4j_loader.py", env)   # nạp Neo4j
     else:
-        print("(Bỏ qua Module 8 — chạy baseline không OntoKG)")
+        print("(Bỏ qua Module 8 — baseline không OntoKG, không nạp Neo4j)")
+
+
+# ──────────────────────────────────────────────────────────
+# Gom các tham số OntoKG truyền cho train/test
+# ──────────────────────────────────────────────────────────
+def _ontokg_kwargs(args):
+    if not args.use_ontokg:
+        return dict(use_ontokg=False, entity_emb_path=None, entity_idx_path=None,
+                    neo4j_uri=None, neo4j_pass=None)
+    return dict(
+        use_ontokg=True,
+        entity_emb_path=P.ENTITY_EMB,
+        entity_idx_path=P.ENTITY_IDX_JSON,
+        neo4j_uri=P.NEO4J_URI,
+        neo4j_pass=args.neo4j_pass,
+    )
 
 
 # ──────────────────────────────────────────────────────────
 # [C] Train TransMTL
 # ──────────────────────────────────────────────────────────
 def stage_train(args):
-    print("\n" + "=" * 64)
-    print(f"[C] TRAIN TransMTL {'(+OntoKG)' if args.use_ontokg else '(baseline)'}")
-    print("=" * 64)
+    tag = "(+OntoKG)" if args.use_ontokg else "(baseline)"
+    print("\n" + "=" * 64 + f"\n[C] TRAIN TransMTL {tag}\n" + "=" * 64)
     from train_v2 import train_model
 
-    trainval_csv = os.path.join(args.split_dir, "trainval.csv")
-    ontokg_kwargs = dict(
-        use_ontokg      = args.use_ontokg,
-        entity_emb_path = args.entity_emb if args.use_ontokg else None,
-        entity_idx_path = args.entity_idx if args.use_ontokg else None,
-        neo4j_uri       = args.neo4j_uri if args.use_ontokg else None,
-        neo4j_pass      = args.neo4j_pass if args.use_ontokg else None,
-    )
-
     train_model(
-        trainval_csv, args.save_path, cfg.PAD_IDX, cfg.LABEL_SMOOTHING,
+        P.TRAIN_DATA_CSV, args.save_path, cfg.PAD_IDX, cfg.LABEL_SMOOTHING,
         args.pretrained_vec, cfg.NUM_LAYER, cfg.D_MODEL, cfg.NUM_HEADS, cfg.DFF,
         cfg.LEN_IN, cfg.LEN_OUT, cfg.DROPOUT, cfg.FREEZE_EMBEDDINGS,
         cfg.MMOE_NUM_EXPERTS, cfg.MMOE_EXPERT_HIDDEN, cfg.MMOE_GATE_HIDDEN,
@@ -127,84 +117,74 @@ def stage_train(args):
         cfg.WARMUP_MMOE_EPOCHS, cfg.MMOE_ENTROPY_LAMBDA, cfg.CLIP_NORM,
         cfg.IGNORE_INDEX, cfg.NUM_WORKERS, cfg.BATCH_SIZE, cfg.USE_MMOE,
         cfg.DEVICE, cfg.SIZE_VOCAB,
-        **ontokg_kwargs,
+        **_ontokg_kwargs(args),
     )
 
 
 # ──────────────────────────────────────────────────────────
-# [D] Test offline + streaming
+# [D] Test offline (batch)
 # ──────────────────────────────────────────────────────────
 def stage_test(args):
-    print("\n" + "=" * 64)
-    print("[D] TEST OFFLINE (batch)")
-    print("=" * 64)
+    print("\n" + "=" * 64 + "\n[D] TEST OFFLINE (batch)\n" + "=" * 64)
     from testing_v2 import run_test
 
-    test_csv = os.path.join(args.split_dir, "test.csv")
-    ontokg_kwargs = dict(
-        use_ontokg      = args.use_ontokg,
-        entity_emb_path = args.entity_emb if args.use_ontokg else None,
-        entity_idx_path = args.entity_idx if args.use_ontokg else None,
-        neo4j_uri       = args.neo4j_uri if args.use_ontokg else None,
-        neo4j_pass      = args.neo4j_pass if args.use_ontokg else None,
-    )
+    if not os.path.exists(args.save_path):
+        print(f"!!! Chưa có checkpoint {args.save_path}. Hãy train trước.")
+        sys.exit(1)
 
     run_test(
-        args.save_path, test_csv, cfg.LEN_IN, cfg.LEN_OUT, cfg.NUM_WORKERS,
+        args.save_path, P.TEST_DATA_CSV, cfg.LEN_IN, cfg.LEN_OUT, cfg.NUM_WORKERS,
         cfg.BATCH_SIZE, cfg.D_MODEL, cfg.PAD_IDX, args.pretrained_vec,
         cfg.NUM_LAYER, cfg.NUM_HEADS, cfg.DFF, cfg.DROPOUT, cfg.FREEZE_EMBEDDINGS,
         cfg.MMOE_NUM_EXPERTS, cfg.MMOE_EXPERT_HIDDEN, cfg.MMOE_GATE_HIDDEN,
         cfg.MMOE_DROPOUT, cfg.MMOE_USE_RESIDUAL, cfg.MMOE_GATE_TEMPERATURE,
         cfg.MMOE_RESIDUAL_SCALE, cfg.IGNORE_INDEX, cfg.DEVICE, cfg.USE_MMOE,
         cfg.SIZE_VOCAB,
-        **ontokg_kwargs,
+        **_ontokg_kwargs(args),
     )
-
-    # Streaming test (Module 10) — chỉ khi có OntoKG
-    if args.use_ontokg:
-        print("\n" + "=" * 64)
-        print("[D2] TEST STREAMING (Module 10)")
-        print("=" * 64)
-        print("Chạy: python OntoKG/module10_streaming_inference.py")
-        print("(Cần plug model TransMTL đã train vào transmtl_infer_fn — xem Module 10)")
 
 
 # ──────────────────────────────────────────────────────────
 # MAIN
 # ──────────────────────────────────────────────────────────
 def main():
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(description="TransMTL + OntoKG pipeline (1 lệnh)")
     ap.add_argument("--stage", default="all",
                     choices=["all", "split", "ontokg", "train", "test"])
-    ap.add_argument("--data_csv",
-                    default="/home/hoangtrung/hdtrungoi/CoKhanh/Data/tintuc_gen_final.csv")
-    ap.add_argument("--pretrained_vec",
-                    default="/home/hoangtrung/hdtrungoi/CoKhanh/word_embedding_pretrain/cc.vi.300.bin")
-    ap.add_argument("--split_dir", default="./data_split")
-    ap.add_argument("--save_path", default="./Results_Score/BestModel.pt")
-    # OntoKG
-    ap.add_argument("--use_ontokg", action="store_true")
-    ap.add_argument("--entity_emb", default="./data/kge/entity_embeddings.pt")
-    ap.add_argument("--entity_idx", default="./data/kge/entity_to_idx.json")
-    ap.add_argument("--neo4j_uri",  default="bolt://localhost:7687")
-    ap.add_argument("--neo4j_pass", default="password")
+    ap.add_argument("--data-csv", dest="data_csv", default=P.RAW_DATA_CSV)
+    ap.add_argument("--pretrained-vec", dest="pretrained_vec", default=P.PRETRAINED_VEC)
+    ap.add_argument("--save-path", dest="save_path", default=P.SAVE_PATH)
+    ap.add_argument("--neo4j-pass", dest="neo4j_pass", default=P.NEO4J_PASSWORD)
+    ap.add_argument("--skip-existing", dest="skip_existing", action="store_true",
+                    help="Bỏ qua bước đã có output (resume).")
+    # OntoKG: mặc định lấy từ pipeline_config.USE_ONTOKG, cho phép override.
+    ap.add_argument("--use-ontokg", dest="use_ontokg", action="store_true", default=None)
+    ap.add_argument("--no-ontokg", dest="use_ontokg", action="store_false")
+    ap.set_defaults(use_ontokg=None)   # None => lấy từ pipeline_config.USE_ONTOKG
     args = ap.parse_args()
 
-    os.makedirs(os.path.dirname(args.save_path), exist_ok=True)
+    if args.use_ontokg is None:
+        args.use_ontokg = P.USE_ONTOKG
+
+    P.ensure_dirs()
+    os.makedirs(os.path.dirname(args.save_path) or ".", exist_ok=True)
+
+    print(f"OntoKG: {'BẬT' if args.use_ontokg else 'TẮT (baseline)'} | "
+          f"stage={args.stage} | save={args.save_path}")
 
     t_start = time.time()
     if args.stage in ("all", "split"):
         stage_split(args)
-    if args.stage in ("all", "ontokg"):
+    if args.stage in ("all", "ontokg") and args.use_ontokg:
         stage_ontokg(args)
+    elif args.stage == "ontokg" and not args.use_ontokg:
+        print("(stage=ontokg nhưng OntoKG đang TẮT — bỏ qua. Dùng --use-ontokg để bật.)")
     if args.stage in ("all", "train"):
         stage_train(args)
     if args.stage in ("all", "test"):
         stage_test(args)
 
-    print("\n" + "=" * 64)
-    print(f"PIPELINE HOÀN TẤT sau {time.time() - t_start:.1f}s")
-    print("=" * 64)
+    print("\n" + "=" * 64 + f"\nPIPELINE HOÀN TẤT sau {time.time() - t_start:.1f}s\n" + "=" * 64)
 
 
 if __name__ == "__main__":

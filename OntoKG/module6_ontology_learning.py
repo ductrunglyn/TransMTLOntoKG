@@ -516,6 +516,8 @@ class Module6OntologyLearner:
 # MAIN
 # ──────────────────────────────────────────────────────────
 if __name__ == "__main__":
+    import os
+    DATA = os.environ.get("OKG_DATA_DIR", "./data")
     learner = Module6OntologyLearner(
         min_entity_count=1,
         umap_components=50,
@@ -524,8 +526,8 @@ if __name__ == "__main__":
         hdbscan_min_samp=5,
     )
     learner.run(
-        entity_index_pkl="./data/kg/entity_index.pkl",
-        output_ontology_json="./data/ontology/ontology_v1.1.json",
-        output_report_txt="./data/ontology/cluster_report.txt",
-        output_umap_npy="./data/ontology/cluster_matrix.npy",
+        entity_index_pkl=os.path.join(DATA, "kg", "entity_index.pkl"),
+        output_ontology_json=os.path.join(DATA, "ontology", "ontology_v1.1.json"),
+        output_report_txt=os.path.join(DATA, "ontology", "cluster_report.txt"),
+        output_umap_npy=os.path.join(DATA, "ontology", "cluster_matrix.npy"),
     )
