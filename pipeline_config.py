@@ -33,7 +33,7 @@ RAW_DATA_CSV = _env(
 # FastText .bin tiếng Việt (cc.vi.300.bin)
 PRETRAINED_VEC = _env(
     "PRETRAINED_VEC",
-    "/home/hoangtrung/hdtrungoi/CoKhanh/word_embedding_pretrain/cc.vi.300.bin",
+    "/home/hoangtrung/hdtrungoi/CoKhanh/TransMTL_K-Fold/word_embedding_pretrain/cc.vi.300.bin",
 )
 
 # ───────────────────────── 2. THƯ MỤC LÀM VIỆC ────────────────────────────
