@@ -16,3 +16,5 @@ venv/
 env/
 .idea/
 .DS_Store  
+*.pt
+Results_Score/

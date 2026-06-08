@@ -24,7 +24,7 @@ Hyperparameter của model nằm ở conf.py; đường dẫn dữ liệu ở pi
 """
 import time
 
-import pipeline_config as P
+import pipeline_config_baseline as P
 from main import make_args, stage_split, stage_train, stage_test
 
 

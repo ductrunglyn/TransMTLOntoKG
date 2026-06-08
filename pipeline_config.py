@@ -54,7 +54,7 @@ SEED       = 42
 #   False = baseline TransMTL thuần  (KHÔNG cần Neo4j, KHÔNG cần run_ontokg.py)
 #   True  = TransMTL + OntoKG         (cần Neo4j + đã chạy run_ontokg.py trước)
 # Đây là công tắc thường: chỉ cần đổi True/False. Không phụ thuộc biến môi trường.
-USE_ONTOKG = False
+USE_ONTOKG = True
 
 NEO4J_URI      = _env("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER     = _env("NEO4J_USER", "neo4j")
