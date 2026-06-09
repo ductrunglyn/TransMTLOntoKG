@@ -121,6 +121,38 @@ def make_uri(surface: str) -> str:
     return f"{BASE_URI}/{h}"
 
 
+def load_alias_map(path: Optional[str]) -> Dict[str, str]:
+    """(2) Đọc từ điển alias JSON, trả về map normalize_key(alias) -> dạng_chuẩn.
+
+    Hỗ trợ CẢ HAI kiểu JSON:
+      • {"Hà Nội": ["HN", "TP Hà Nội", "Thủ đô"]}   (canonical -> list alias)
+      • {"HN": "Hà Nội", "TP.HCM": "Thành phố Hồ Chí Minh"}  (alias -> canonical)
+    """
+    if not path:
+        return {}
+    p = Path(path)
+    if not p.exists():
+        LOGGER.warning("Không thấy file alias %s — bỏ qua từ điển alias.", path)
+        return {}
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8"))
+    except Exception as e:
+        LOGGER.warning("Lỗi đọc file alias %s: %s", path, e)
+        return {}
+
+    amap: Dict[str, str] = {}
+    for key, val in raw.items():
+        if isinstance(val, list):                 # canonical -> [alias, ...]
+            canonical = str(key)
+            amap[normalize_key(canonical)] = canonical
+            for alias in val:
+                if alias:
+                    amap[normalize_key(alias)] = canonical
+        elif val:                                 # alias -> canonical
+            amap[normalize_key(key)] = str(val)
+    return amap
+
+
 def segment_for_phobert(text: str) -> str:
     """Word-segment text với underthesea (PhoBERT cần underscore)."""
     text = normalize_text(text)
@@ -231,6 +263,53 @@ class WikidataLinker:
 
         self._cache[cache_key] = wikidata_id
         return wikidata_id
+
+    def get_aliases(self, wikidata_id: str, langs=("vi", "en")) -> List[str]:
+        """(1) Lấy label + danh sách 'also known as' của một Q-ID (cache lại).
+
+        Dùng để đăng ký mọi biến thể tên (vd Q1748 -> 'Hà Nội', 'Hanoi', 'Thủ đô
+        Hà Nội'...) về cùng một URI, giúp các mention sau khớp ngay ở Tầng 1.
+        """
+        if not wikidata_id:
+            return []
+        cache_key = f"ALIASES::{wikidata_id}"
+        if cache_key in self._cache:
+            return self._cache[cache_key] or []
+
+        self._rate_limit()
+        params = {
+            "action": "wbgetentities",
+            "ids": wikidata_id,
+            "props": "labels|aliases",
+            "languages": "|".join(langs),
+            "format": "json",
+        }
+        surfaces: List[str] = []
+        try:
+            resp = requests.get(
+                self.WIKIDATA_API, params=params, timeout=8, headers=self.HEADERS,
+            )
+            resp.raise_for_status()
+            ent = resp.json().get("entities", {}).get(wikidata_id, {})
+            for lang in langs:
+                lab = ent.get("labels", {}).get(lang, {}).get("value")
+                if lab:
+                    surfaces.append(lab)
+                for al in ent.get("aliases", {}).get(lang, []):
+                    if al.get("value"):
+                        surfaces.append(al["value"])
+        except Exception as e:
+            LOGGER.debug("Wikidata aliases error for %s: %s", wikidata_id, e)
+
+        seen, out = set(), []
+        for s in surfaces:
+            s = normalize_text(s)
+            k = normalize_key(s)
+            if s and k not in seen:
+                seen.add(k)
+                out.append(s)
+        self._cache[cache_key] = out
+        return out
 
 
 # ──────────────────────────────────────────────────────────
@@ -421,6 +500,8 @@ class Module3EntityLinker:
         similarity_threshold: float = 0.92,
         use_wikidata: bool = True,
         use_embedding_matching: bool = True,
+        alias_dict_path: Optional[str] = None,        # (2) từ điển alias thủ công
+        ingest_wikidata_aliases: bool = True,         # (1) nạp alias từ Wikidata
     ):
         self.registry = EntityRegistry()
         self.wikidata = WikidataLinker(cache_path=wikidata_cache_path) if use_wikidata else None
@@ -428,6 +509,32 @@ class Module3EntityLinker:
         self.sim_threshold = similarity_threshold
         self.use_wikidata = use_wikidata
         self.use_embedding = use_embedding_matching and self.encoder.available
+
+        # (2) Mặc định nạp aliases.json đặt cạnh module nếu không truyền đường dẫn.
+        if alias_dict_path is None:
+            _default = Path(__file__).with_name("aliases.json")
+            alias_dict_path = str(_default) if _default.exists() else None
+        self.alias_map = load_alias_map(alias_dict_path)
+        if self.alias_map:
+            LOGGER.info("Đã nạp %d alias thủ công từ %s", len(self.alias_map), alias_dict_path)
+
+        # (1) Nạp alias Wikidata: chỉ ingest 1 lần / mỗi Q-ID.
+        self.ingest_wd_aliases = ingest_wikidata_aliases
+        self._aliases_ingested: set = set()
+
+    # ── (1) Đăng ký alias Wikidata về cùng URI ──────────────
+    def _ingest_wikidata_aliases(self, uri: str, wikidata_id: str, label: str):
+        if not (self.ingest_wd_aliases and self.use_wikidata and self.wikidata):
+            return
+        if uri in self._aliases_ingested:
+            return
+        self._aliases_ingested.add(uri)
+        for alias in self.wikidata.get_aliases(wikidata_id):
+            k = normalize_key(alias)
+            # Chỉ thêm nếu khoá chưa trỏ tới URI nào (tránh đè liên kết đã có).
+            if k and k not in self.registry.surface_to_uri:
+                self.registry.register(k, uri, alias, label, "wikidata_alias",
+                                       wikidata_id, None)
 
     # ── Link một entity ─────────────────────────────────────
     def _link_one(
@@ -439,6 +546,13 @@ class Module3EntityLinker:
         """
         Trả về dict: {uri, uri_source, wikidata_id, needs_review, embedding}
         """
+        # (2) Chuẩn hoá alias thủ công TRƯỚC khi linking:
+        #     "HN"/"TP Hà Nội"/"Thủ đô" -> "Hà Nội" rồi mới đi qua 4 tầng.
+        if self.alias_map:
+            canonical = self.alias_map.get(normalize_key(surface))
+            if canonical:
+                surface = canonical
+
         norm_key = normalize_key(surface)
         emb = self.encoder.encode(surface) if self.use_embedding else None
 
@@ -464,6 +578,8 @@ class Module3EntityLinker:
         if wikidata_id:
             uri = f"{WD_URI}/{wikidata_id}"
             self.registry.register(norm_key, uri, surface, label, "wikidata", wikidata_id, emb)
+            # (1) Đăng ký mọi alias Wikidata về cùng URI này (chỉ 1 lần / Q-ID).
+            self._ingest_wikidata_aliases(uri, wikidata_id, label)
             return {
                 "uri": uri,
                 "uri_source": "wikidata",
@@ -585,6 +701,11 @@ if __name__ == "__main__":
         similarity_threshold=0.92,
         use_wikidata=True,
         use_embedding_matching=True,
+        # (2) đường dẫn từ điển alias (mặc định lấy OntoKG/aliases.json cạnh module).
+        alias_dict_path=os.environ.get("OKG_ALIAS_JSON", None),
+        # (1) nạp alias Wikidata (đặt OKG_WD_ALIASES=0 để tắt nếu muốn nhanh hơn).
+        ingest_wikidata_aliases=os.environ.get("OKG_WD_ALIASES", "1").lower()
+                                 not in ("0", "false", "no", "off"),
     )
 
     linker.link_all(
