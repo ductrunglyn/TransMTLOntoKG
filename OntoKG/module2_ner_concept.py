@@ -360,17 +360,34 @@ class Module2NerConceptExtractor:
         # underthesea NER
         self.use_underthesea_ner = use_underthesea_ner and uts_ner is not None
 
+        # Thiết bị cho các model transformer. Mặc định chạy GPU nếu có
+        # (trước đây pipeline/embed model chạy CPU -> RẤT chậm).
+        import os as _os
+        _dev = str(_os.environ.get("OKG_DEVICE", "cuda"))
+        if torch is not None and torch.cuda.is_available() and "cuda" in _dev:
+            self._torch_device = torch.device("cuda")
+            self._hf_device = 0
+            self._hf_dtype = torch.float16
+        else:
+            self._torch_device = torch.device("cpu") if torch is not None else None
+            self._hf_device = -1
+            self._hf_dtype = None
+
         # PhoBERT / HF NER
         self.use_phobert_ner = bool(use_phobert_ner and pipeline is not None and phobert_model_name)
         self.phobert_ner = None
         if self.use_phobert_ner:
             try:
-                self.phobert_ner = pipeline(
-                    "token-classification",
+                _pipe_kwargs = dict(
+                    task="token-classification",
                     model=phobert_model_name,
                     aggregation_strategy="simple",
+                    device=self._hf_device,
                 )
-                LOGGER.info("Loaded NER model: %s", phobert_model_name)
+                if self._hf_dtype is not None:
+                    _pipe_kwargs["torch_dtype"] = self._hf_dtype
+                self.phobert_ner = pipeline(**_pipe_kwargs)
+                LOGGER.info("Loaded NER model: %s (device=%s)", phobert_model_name, self._hf_device)
             except Exception as e:
                 self.phobert_ner = None
                 LOGGER.warning("Failed loading NER model %s: %s", phobert_model_name, e)
@@ -406,7 +423,10 @@ class Module2NerConceptExtractor:
                 )
                 self.embed_model = AutoModel.from_pretrained(concept_embedding_model_name)
                 self.embed_model.eval()
-                LOGGER.info("Loaded concept embedding model: %s", concept_embedding_model_name)
+                if getattr(self, "_torch_device", None) is not None:
+                    self.embed_model.to(self._torch_device)   # GPU nếu có
+                LOGGER.info("Loaded concept embedding model: %s (device=%s)",
+                            concept_embedding_model_name, getattr(self, "_torch_device", "cpu"))
             except Exception as e:
                 self.embed_tokenizer = None
                 self.embed_model = None
@@ -439,6 +459,8 @@ class Module2NerConceptExtractor:
                 max_length=128,
                 padding=True,
             )
+            if getattr(self, "_torch_device", None) is not None:
+                inputs = {k: v.to(self._torch_device) for k, v in inputs.items()}
             with torch.no_grad():
                 outputs = self.embed_model(**inputs)
 
@@ -1172,9 +1194,11 @@ def load_ontology_concepts(path: Union[str, Path]) -> List[Dict[str, Any]]:
 # MAIN
 # =========================================================
 if __name__ == "__main__":
-    input_jsonl = "./data/preprocessed_articles.jsonl"
-    output_jsonl = "./data/module2_ner_concept.jsonl"
-    error_log_jsonl = "./data/module2_errors.jsonl"
+    import os
+    DATA = os.environ.get("OKG_DATA_DIR", "./data")
+    input_jsonl = os.path.join(DATA, "preprocessed_articles.jsonl")
+    output_jsonl = os.path.join(DATA, "module2_ner_concept.jsonl")
+    error_log_jsonl = os.path.join(DATA, "module2_errors.jsonl")
 
     ontology_concepts_path = None
     ontology_concepts = []

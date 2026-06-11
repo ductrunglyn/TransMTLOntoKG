@@ -264,18 +264,20 @@ class Neo4jLoader:
 
 
 if __name__ == "__main__":
+    import os
+    DATA = os.environ.get("OKG_DATA_DIR", "./data")
     loader = Neo4jLoader(
-        uri="bolt://localhost:7687",
-        user="neo4j",
-        password="password",   # ← đổi từ "your_password" thành "password"
-        database="neo4j",
+        uri      = os.environ.get("NEO4J_URI", "bolt://localhost:7687"),
+        user     = os.environ.get("NEO4J_USER", "neo4j"),
+        password = os.environ.get("NEO4J_PASSWORD", "password"),
+        database = os.environ.get("NEO4J_DATABASE", "neo4j"),
     )
     try:
         loader.load_all(
-            entity_index_pkl   = "./data/kg/entity_index.pkl",
-            embeddings_pt      = "./data/kge/entity_embeddings.pt",
-            entity_to_idx_json = "./data/kge/entity_to_idx.json",
-            triples_jsonl      = "./data/module4_triples.jsonl",
+            entity_index_pkl   = os.path.join(DATA, "kg", "entity_index.pkl"),
+            embeddings_pt      = os.path.join(DATA, "kge", "entity_embeddings.pt"),
+            entity_to_idx_json = os.path.join(DATA, "kge", "entity_to_idx.json"),
+            triples_jsonl      = os.path.join(DATA, "module4_triples.jsonl"),
             embedding_dim      = 768,
             reset              = True,
         )

@@ -62,6 +62,11 @@ CONTROL_RE    = re.compile(r"[\u200b\u200c\u200d\ufeff]")
 # Labels cần thử Wikidata (TIME / MISC / EVENT → bỏ qua)
 WIKIDATA_ENABLED_LABELS = {"LOC", "PER", "ORG"}
 
+# Chỉ so khớp embedding (Tầng 3) cho nhãn proper-noun. KHÔNG so khớp concept
+# (MISC) vì concept rất nhiều, hiếm khi trùng, và là nguyên nhân chính gây
+# bùng nổ số entity + làm chậm O(N^2).
+EMB_MATCH_LABELS = {"LOC", "PER", "ORG"}
+
 # Hints từ khoá để xác nhận type qua description Wikidata
 WIKIDATA_TYPE_HINTS: Dict[str, List[str]] = {
     "LOC": [
@@ -119,6 +124,38 @@ def make_uri(surface: str) -> str:
     """Tạo URI nội bộ từ surface form (md5 8 ký tự)."""
     h = hashlib.md5(normalize_key(surface).encode()).hexdigest()[:8]
     return f"{BASE_URI}/{h}"
+
+
+def load_alias_map(path: Optional[str]) -> Dict[str, str]:
+    """(2) Đọc từ điển alias JSON, trả về map normalize_key(alias) -> dạng_chuẩn.
+
+    Hỗ trợ CẢ HAI kiểu JSON:
+      • {"Hà Nội": ["HN", "TP Hà Nội", "Thủ đô"]}   (canonical -> list alias)
+      • {"HN": "Hà Nội", "TP.HCM": "Thành phố Hồ Chí Minh"}  (alias -> canonical)
+    """
+    if not path:
+        return {}
+    p = Path(path)
+    if not p.exists():
+        LOGGER.warning("Không thấy file alias %s — bỏ qua từ điển alias.", path)
+        return {}
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8"))
+    except Exception as e:
+        LOGGER.warning("Lỗi đọc file alias %s: %s", path, e)
+        return {}
+
+    amap: Dict[str, str] = {}
+    for key, val in raw.items():
+        if isinstance(val, list):                 # canonical -> [alias, ...]
+            canonical = str(key)
+            amap[normalize_key(canonical)] = canonical
+            for alias in val:
+                if alias:
+                    amap[normalize_key(alias)] = canonical
+        elif val:                                 # alias -> canonical
+            amap[normalize_key(key)] = str(val)
+    return amap
 
 
 def segment_for_phobert(text: str) -> str:
@@ -232,6 +269,53 @@ class WikidataLinker:
         self._cache[cache_key] = wikidata_id
         return wikidata_id
 
+    def get_aliases(self, wikidata_id: str, langs=("vi", "en")) -> List[str]:
+        """(1) Lấy label + danh sách 'also known as' của một Q-ID (cache lại).
+
+        Dùng để đăng ký mọi biến thể tên (vd Q1748 -> 'Hà Nội', 'Hanoi', 'Thủ đô
+        Hà Nội'...) về cùng một URI, giúp các mention sau khớp ngay ở Tầng 1.
+        """
+        if not wikidata_id:
+            return []
+        cache_key = f"ALIASES::{wikidata_id}"
+        if cache_key in self._cache:
+            return self._cache[cache_key] or []
+
+        self._rate_limit()
+        params = {
+            "action": "wbgetentities",
+            "ids": wikidata_id,
+            "props": "labels|aliases",
+            "languages": "|".join(langs),
+            "format": "json",
+        }
+        surfaces: List[str] = []
+        try:
+            resp = requests.get(
+                self.WIKIDATA_API, params=params, timeout=8, headers=self.HEADERS,
+            )
+            resp.raise_for_status()
+            ent = resp.json().get("entities", {}).get(wikidata_id, {})
+            for lang in langs:
+                lab = ent.get("labels", {}).get(lang, {}).get("value")
+                if lab:
+                    surfaces.append(lab)
+                for al in ent.get("aliases", {}).get(lang, []):
+                    if al.get("value"):
+                        surfaces.append(al["value"])
+        except Exception as e:
+            LOGGER.debug("Wikidata aliases error for %s: %s", wikidata_id, e)
+
+        seen, out = set(), []
+        for s in surfaces:
+            s = normalize_text(s)
+            k = normalize_key(s)
+            if s and k not in seen:
+                seen.add(k)
+                out.append(s)
+        self._cache[cache_key] = out
+        return out
+
 
 # ──────────────────────────────────────────────────────────
 # PhoBERT Embedding Encoder
@@ -326,21 +410,67 @@ class EntityRegistry:
         # uri → numpy embedding
         self.embeddings: Dict[str, np.ndarray] = {}
 
+        # ── Chỉ mục embedding ĐÃ CHUẨN HOÁ để so khớp vector hoá (nhanh) ──
+        # Dùng buffer cấp phát sẵn (nhân đôi khi đầy) -> thêm O(1) khấu hao,
+        # tìm kiếm O(số entity cùng nhãn) bằng 1 phép nhân ma trận BLAS.
+        self._emb_buf: Optional[np.ndarray] = None   # (cap, D) float32, đã chuẩn hoá
+        self._emb_cap: int = 0
+        self._emb_n: int = 0
+        self._emb_uris: List[str] = []               # song song với hàng buffer
+        self._label_idx: Dict[str, List[int]] = {}   # label -> list chỉ số hàng
+
     # ── Lookup ──────────────────────────────────────────────
     def get_uri_by_surface(self, norm_key: str) -> Optional[str]:
         return self.surface_to_uri.get(norm_key)
 
+    def _emb_add(self, uri: str, label: str, emb: np.ndarray):
+        """Thêm 1 embedding (đã chuẩn hoá) vào chỉ mục để so khớp nhanh."""
+        v = np.asarray(emb, dtype=np.float32)
+        n = np.linalg.norm(v)
+        if n < 1e-9:
+            return
+        v = v / n
+        D = v.shape[0]
+        if self._emb_buf is None:
+            self._emb_cap = 1024
+            self._emb_buf = np.zeros((self._emb_cap, D), dtype=np.float32)
+        if self._emb_n >= self._emb_cap:
+            self._emb_cap *= 2
+            new_buf = np.zeros((self._emb_cap, D), dtype=np.float32)
+            new_buf[: self._emb_n] = self._emb_buf[: self._emb_n]
+            self._emb_buf = new_buf
+        row = self._emb_n
+        self._emb_buf[row] = v
+        self._emb_uris.append(uri)
+        self._label_idx.setdefault(label, []).append(row)
+        self._emb_n += 1
+
     def get_uri_by_embedding(
-        self, emb: np.ndarray, threshold: float = 0.92
+        self, emb: np.ndarray, threshold: float = 0.92, label: Optional[str] = None
     ) -> Optional[str]:
-        if not self.embeddings:
+        """So khớp cosine VECTOR HOÁ. Nếu có label -> chỉ so trong các entity
+        cùng nhãn (nhanh hơn nhiều). Trả về URI tốt nhất nếu >= threshold."""
+        if self._emb_buf is None or self._emb_n == 0:
             return None
-        best_sim, best_uri = 0.0, None
-        for uri, stored in self.embeddings.items():
-            sim = EmbeddingEncoder.cosine(emb, stored)
-            if sim > best_sim:
-                best_sim, best_uri = sim, uri
-        return best_uri if best_sim >= threshold else None
+        q = np.asarray(emb, dtype=np.float32)
+        nq = np.linalg.norm(q)
+        if nq < 1e-9:
+            return None
+        q = q / nq
+
+        if label is not None:
+            rows = self._label_idx.get(label)
+            if not rows:
+                return None
+            sub = self._emb_buf[rows]                # (k, D), embeddings đã chuẩn hoá
+            sims = sub @ q                           # cosine vì cả hai đã chuẩn hoá
+            j = int(np.argmax(sims))
+            return self._emb_uris[rows[j]] if sims[j] >= threshold else None
+
+        mat = self._emb_buf[: self._emb_n]
+        sims = mat @ q
+        j = int(np.argmax(sims))
+        return self._emb_uris[j] if sims[j] >= threshold else None
 
     # ── Register ─────────────────────────────────────────────
     def register(
@@ -372,6 +502,10 @@ class EntityRegistry:
 
         if emb is not None and uri not in self.embeddings:
             self.embeddings[uri] = emb
+            # Chỉ đưa vào chỉ mục so khớp cho nhãn proper-noun (bỏ qua concept)
+            # để buffer nhỏ gọn và phép nhân ma trận nhanh.
+            if label in EMB_MATCH_LABELS:
+                self._emb_add(uri, label, emb)
 
     # ── Persist ─────────────────────────────────────────────
     def save(self, path: str):
@@ -421,6 +555,8 @@ class Module3EntityLinker:
         similarity_threshold: float = 0.92,
         use_wikidata: bool = True,
         use_embedding_matching: bool = True,
+        alias_dict_path: Optional[str] = None,        # (2) từ điển alias thủ công
+        ingest_wikidata_aliases: bool = True,         # (1) nạp alias từ Wikidata
     ):
         self.registry = EntityRegistry()
         self.wikidata = WikidataLinker(cache_path=wikidata_cache_path) if use_wikidata else None
@@ -428,6 +564,32 @@ class Module3EntityLinker:
         self.sim_threshold = similarity_threshold
         self.use_wikidata = use_wikidata
         self.use_embedding = use_embedding_matching and self.encoder.available
+
+        # (2) Mặc định nạp aliases.json đặt cạnh module nếu không truyền đường dẫn.
+        if alias_dict_path is None:
+            _default = Path(__file__).with_name("aliases.json")
+            alias_dict_path = str(_default) if _default.exists() else None
+        self.alias_map = load_alias_map(alias_dict_path)
+        if self.alias_map:
+            LOGGER.info("Đã nạp %d alias thủ công từ %s", len(self.alias_map), alias_dict_path)
+
+        # (1) Nạp alias Wikidata: chỉ ingest 1 lần / mỗi Q-ID.
+        self.ingest_wd_aliases = ingest_wikidata_aliases
+        self._aliases_ingested: set = set()
+
+    # ── (1) Đăng ký alias Wikidata về cùng URI ──────────────
+    def _ingest_wikidata_aliases(self, uri: str, wikidata_id: str, label: str):
+        if not (self.ingest_wd_aliases and self.use_wikidata and self.wikidata):
+            return
+        if uri in self._aliases_ingested:
+            return
+        self._aliases_ingested.add(uri)
+        for alias in self.wikidata.get_aliases(wikidata_id):
+            k = normalize_key(alias)
+            # Chỉ thêm nếu khoá chưa trỏ tới URI nào (tránh đè liên kết đã có).
+            if k and k not in self.registry.surface_to_uri:
+                self.registry.register(k, uri, alias, label, "wikidata_alias",
+                                       wikidata_id, None)
 
     # ── Link một entity ─────────────────────────────────────
     def _link_one(
@@ -439,6 +601,13 @@ class Module3EntityLinker:
         """
         Trả về dict: {uri, uri_source, wikidata_id, needs_review, embedding}
         """
+        # (2) Chuẩn hoá alias thủ công TRƯỚC khi linking:
+        #     "HN"/"TP Hà Nội"/"Thủ đô" -> "Hà Nội" rồi mới đi qua 4 tầng.
+        if self.alias_map:
+            canonical = self.alias_map.get(normalize_key(surface))
+            if canonical:
+                surface = canonical
+
         norm_key = normalize_key(surface)
         emb = self.encoder.encode(surface) if self.use_embedding else None
 
@@ -464,6 +633,8 @@ class Module3EntityLinker:
         if wikidata_id:
             uri = f"{WD_URI}/{wikidata_id}"
             self.registry.register(norm_key, uri, surface, label, "wikidata", wikidata_id, emb)
+            # (1) Đăng ký mọi alias Wikidata về cùng URI này (chỉ 1 lần / Q-ID).
+            self._ingest_wikidata_aliases(uri, wikidata_id, label)
             return {
                 "uri": uri,
                 "uri_source": "wikidata",
@@ -472,9 +643,11 @@ class Module3EntityLinker:
                 "embedding": emb.tolist() if emb is not None else None,
             }
 
-        # ── Tầng 3: Embedding similarity ────────────────────
-        if emb is not None and self.use_embedding:
-            matched_uri = self.registry.get_uri_by_embedding(emb, self.sim_threshold)
+        # ── Tầng 3: Embedding similarity (chỉ cho proper-noun, cùng nhãn) ──
+        if emb is not None and self.use_embedding and label in EMB_MATCH_LABELS:
+            matched_uri = self.registry.get_uri_by_embedding(
+                emb, self.sim_threshold, label=label
+            )
             if matched_uri:
                 info = self.registry.uri_info[matched_uri]
                 self.registry.register(norm_key, matched_uri, surface, label,
@@ -575,19 +748,30 @@ class Module3EntityLinker:
 # MAIN
 # ──────────────────────────────────────────────────────────
 if __name__ == "__main__":
+    import os
+    DATA = os.environ.get("OKG_DATA_DIR", "./data")
+    device = os.environ.get("OKG_DEVICE", "cuda")
     linker = Module3EntityLinker(
         embedding_model="vinai/phobert-base-v2",
-        device="cuda",
-        wikidata_cache_path="./data/wikidata_cache.json",
+        device=device,
+        wikidata_cache_path=os.path.join(DATA, "wikidata_cache.json"),
         similarity_threshold=0.92,
         use_wikidata=True,
-        use_embedding_matching=True,
+        # Đặt OKG_EMB_MATCH=0 để TẮT hẳn so khớp embedding (nhanh nhất, chỉ dựa
+        # vào surface + alias + Wikidata).
+        use_embedding_matching=os.environ.get("OKG_EMB_MATCH", "1").lower()
+                                not in ("0", "false", "no", "off"),
+        # (2) đường dẫn từ điển alias (mặc định lấy OntoKG/aliases.json cạnh module).
+        alias_dict_path=os.environ.get("OKG_ALIAS_JSON", None),
+        # (1) nạp alias Wikidata (đặt OKG_WD_ALIASES=0 để tắt nếu muốn nhanh hơn).
+        ingest_wikidata_aliases=os.environ.get("OKG_WD_ALIASES", "1").lower()
+                                 not in ("0", "false", "no", "off"),
     )
 
     linker.link_all(
-        input_jsonl="./data/module2_ner_concept.jsonl",
-        output_jsonl="./data/module3_entity_linked.jsonl",
-        registry_pkl="./data/entity_registry.pkl",
-        wikidata_cache_json="./data/wikidata_cache.json",
+        input_jsonl=os.path.join(DATA, "module2_ner_concept.jsonl"),
+        output_jsonl=os.path.join(DATA, "module3_entity_linked.jsonl"),
+        registry_pkl=os.path.join(DATA, "entity_registry.pkl"),
+        wikidata_cache_json=os.path.join(DATA, "wikidata_cache.json"),
         save_every=500,
     )

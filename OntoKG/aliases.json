@@ -1,0 +1,14 @@
+{
+  "Hà Nội": ["HN", "TP Hà Nội", "TP. Hà Nội", "Thành phố Hà Nội", "Thủ đô", "Thủ đô Hà Nội", "Hanoi", "Ha Noi"],
+  "Thành phố Hồ Chí Minh": ["TP HCM", "TP.HCM", "TPHCM", "TP Hồ Chí Minh", "TP. Hồ Chí Minh", "Sài Gòn", "Saigon", "Hồ Chí Minh City", "HCMC", "Thành phố HCM"],
+  "Đà Nẵng": ["TP Đà Nẵng", "Thành phố Đà Nẵng", "Danang", "Da Nang"],
+  "Hải Phòng": ["TP Hải Phòng", "Thành phố Hải Phòng", "Haiphong"],
+  "Cần Thơ": ["TP Cần Thơ", "Thành phố Cần Thơ"],
+  "Việt Nam": ["VN", "Vietnam", "Viet Nam", "nước Việt Nam"],
+  "Hoa Kỳ": ["Mỹ", "Nước Mỹ", "USA", "US", "United States", "Hợp chủng quốc Hoa Kỳ"],
+  "Trung Quốc": ["TQ", "China", "Trung Hoa"],
+  "Liên Hợp Quốc": ["LHQ", "Liên Hiệp Quốc", "United Nations", "UN"],
+  "Bộ Giáo dục và Đào tạo": ["Bộ GD&ĐT", "Bộ GDĐT", "Bộ GD-ĐT"],
+  "Bộ Y tế": ["Bộ YT"],
+  "Bộ Công an": ["Bộ CA"]
+}

@@ -531,9 +531,11 @@ class Module4RelationExtractor:
 # MAIN
 # ──────────────────────────────────────────────────────────
 if __name__ == "__main__":
+    import os
+    DATA = os.environ.get("OKG_DATA_DIR", "./data")
     extractor = Module4RelationExtractor(min_confidence=0.70)
     extractor.extract_all(
-        input_jsonl="./data/module3_entity_linked.jsonl",
-        output_triples_jsonl="./data/module4_triples.jsonl",
-        output_enriched_jsonl="./data/module4_enriched.jsonl",
+        input_jsonl=os.path.join(DATA, "module3_entity_linked.jsonl"),
+        output_triples_jsonl=os.path.join(DATA, "module4_triples.jsonl"),
+        output_enriched_jsonl=os.path.join(DATA, "module4_enriched.jsonl"),
     )

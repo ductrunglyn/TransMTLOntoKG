@@ -454,9 +454,11 @@ class KGBuilder:
 # MAIN
 # ──────────────────────────────────────────────────────────
 if __name__ == "__main__":
+    import os
+    DATA = os.environ.get("OKG_DATA_DIR", "./data")
     builder = KGBuilder()
     builder.build(
-        module3_jsonl="./data/module3_entity_linked.jsonl",
-        module4_triples_jsonl="./data/module4_triples.jsonl",
-        output_dir="./data/kg",
+        module3_jsonl=os.path.join(DATA, "module3_entity_linked.jsonl"),
+        module4_triples_jsonl=os.path.join(DATA, "module4_triples.jsonl"),
+        output_dir=os.path.join(DATA, "kg"),
     )

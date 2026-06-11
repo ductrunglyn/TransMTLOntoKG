@@ -17,6 +17,7 @@ from utils_v2 import (
     load_checkpoint_state,
     ensure_decoder_sos,
 )
+from ontokg_data_bridge import OntoKGBridge   # OntoKG: truy vấn Neo4j khi test
 
 seed_everything(42)
 logging.basicConfig(level=logging.INFO)
@@ -80,7 +81,10 @@ def _compute_summary_loss(out, tgt_sum, pad_idx, ignore_index, label_smoothing, 
 def run_test(path_weight, data_path, len_in, len_out, num_workers, batch_size, d_model, pad_idx,
              pretrained_vec_path, num_layers, num_heads, dff, dropout, freeze_embeddings, mmoe_num_experts,
              mmoe_expert_hidden, mmoe_gate_hidden, mmoe_dropout, mmoe_use_residual, mmoe_gate_temperature,
-             mmoe_residual_scale, ignore_index, device, use_mmoe, use_synonym, synonym_path, size_vocab):
+             mmoe_residual_scale, ignore_index, device, use_mmoe, size_vocab,
+             # ── OntoKG params (khớp với train_v2.train_model) ──
+             use_ontokg=False, entity_emb_path=None, entity_idx_path=None,
+             neo4j_uri=None, neo4j_pass=None):
 
     # FIX 2: lấy tokenizer từ dataset object (ds ở vị trí cuối)
     _, _, test_loader, vocab, pad_idx, word2idx, idx2word, _, ds = get_loaders(
@@ -94,10 +98,10 @@ def run_test(path_weight, data_path, len_in, len_out, num_workers, batch_size, d
     emb_matrix = None
     if pretrained_vec_path is not None:
         emb_matrix = load_fasttext_bin_embeddings(
-            word2idx, pretrained_vec_path, d_model, pad_idx, use_synonym, synonym_path
+            word2idx, pretrained_vec_path, d_model, pad_idx
         )
 
-    # FIX 4 + FIX 6: thêm use_copy=True
+    # FIX 4 + FIX 6: thêm use_copy=True; bật OntoKG để khớp checkpoint khi train có KG
     model = TransformerMTL(
         num_layers=num_layers, d_model=d_model, num_heads=num_heads, dff=dff,
         max_len_in=len_in, max_len_out=len_out, dropout=dropout,
@@ -112,12 +116,19 @@ def run_test(path_weight, data_path, len_in, len_out, num_workers, batch_size, d
         mmoe_residual_scale=mmoe_residual_scale,
         use_mmoe=use_mmoe,
         use_copy=True,    # FIX 4: phải khớp với lúc train
+        use_ontokg=use_ontokg, kg_in_dim=768, kg_num_relations=9,
     )
     model = model.to(device)
 
     state = load_checkpoint_state(path_weight, device)
     model.load_state_dict(state, strict=False)
     model.eval()
+
+    # OntoKG: khởi tạo bridge truy vấn Neo4j (None khi tắt)
+    bridge = OntoKGBridge(
+        uri=neo4j_uri or "bolt://localhost:7687", user="neo4j",
+        password=neo4j_pass or "password", d_model=d_model, enabled=use_ontokg,
+    )
 
     scorer       = rouge_scorer.RougeScorer(["rouge1", "rouge2", "rougeL"], use_stemmer=False)
     rouge1_list  = []; rouge2_list = []; rougel_list = []
@@ -129,7 +140,10 @@ def run_test(path_weight, data_path, len_in, len_out, num_workers, batch_size, d
 
     with torch.no_grad():
         for batch in test_loader:
-            if len(batch) == 7:
+            article_ids = None
+            if len(batch) == 8:
+                src, tgt_sum, attn, labels, raw_texts, token_maps, word_texts, article_ids = batch
+            elif len(batch) == 7:
                 src, tgt_sum, attn, labels, raw_texts, token_maps, word_texts = batch
             else:
                 src, tgt_sum, attn, labels = batch[:4]
@@ -138,9 +152,14 @@ def run_test(path_weight, data_path, len_in, len_out, num_workers, batch_size, d
             src    = src.to(device); tgt_sum = tgt_sum.to(device); labels = labels.to(device)
             B_cur  = src.size(0)
 
+            # OntoKG: subgraph cho cả batch (None nếu tắt hoặc thiếu article_ids)
+            kg_batch = (bridge.build_kg_batch(article_ids)
+                        if (bridge is not None and article_ids is not None) else None)
+
             # Đảm bảo target có SOS để tính loss chuẩn như lúc train
             tgt_sum_sos = ensure_decoder_sos(tgt_sum, model, device)
-            out = model(inp=src, tar=tgt_sum_sos, labels=labels, task="both", training=False)
+            out = model(inp=src, tar=tgt_sum_sos, labels=labels, task="both",
+                        training=False, kg_batch=kg_batch)
             key_nll = out.get("key_nll", 0.0)
 
             # FIX 3 + FIX 5: Beam search (auto-regressive, có copy mechanism)
@@ -148,13 +167,15 @@ def run_test(path_weight, data_path, len_in, len_out, num_workers, batch_size, d
             gen_ids_list = None
             try:
                 gen_ids_list = model.beam_search_generate_batch(
-                    src, model.max_len_out, beam_size=3, len_penalty=0.6, n_gram_block=3
+                    src, model.max_len_out, beam_size=3, len_penalty=0.6, n_gram_block=3,
+                    kg_batch=kg_batch
                 )
             except Exception as e:
                 logger.debug(f"Beam search failed → fallback greedy: {e}")
                 try:
                     # FIX 5: dùng greedy auto-regressive (không phải teacher-forced argmax)
-                    gen_ids_list = model.greedy_decode_batch(src, max_len=model.max_len_out)
+                    gen_ids_list = model.greedy_decode_batch(src, max_len=model.max_len_out,
+                                                             kg_batch=kg_batch)
                 except Exception as e2:
                     logger.debug(f"Greedy decode also failed: {e2}")
                     gen_ids_list = [[] for _ in range(B_cur)]
@@ -252,6 +273,7 @@ def run_test(path_weight, data_path, len_in, len_out, num_workers, batch_size, d
             total_sum_loss += batch_sum_loss * B_cur
             total_key_loss += batch_key_loss * B_cur
 
+    bridge.close()
     elapsed = time.time() - start
     logger.info(f"Evaluation finished in {elapsed:.1f}s on {n_samples} samples.")
 

@@ -438,9 +438,11 @@ class Module1Preprocessor:
         content_tokens = tokenize_vietnamese(content)
         full_text_tokens = tokenize_vietnamese(full_text)
 
-        title_pos = pos_tag_vietnamese(title) if self.use_pos else []
-        summary_pos = pos_tag_vietnamese(summary) if self.use_pos else []
-        content_pos = pos_tag_vietnamese(content) if self.use_pos else []
+        # Chỉ full_text_pos được Module 2 sử dụng (trích noun phrase). Bỏ POS cho
+        # title/summary/content để tránh chạy pos_tag 4 lần -> nhanh ~4x.
+        title_pos = []
+        summary_pos = []
+        content_pos = []
         full_text_pos = pos_tag_vietnamese(full_text) if self.use_pos else []
 
         stats = {
@@ -574,11 +576,15 @@ def preprocess_records(
 
 
 if __name__ == "__main__":
+    import os
     no_pos = False
     include_summary_in_full_text = True
-    input_csv = r"/home/hoangtrung/hdtrungoi/CoKhanh/TransMTL_OntoKG/data_split/trainval.csv"
-    output_jsonl = "./data/preprocessed_articles.jsonl"
-    error_log_jsonl = "./data/preprocess_errors.jsonl"
+    DATA = os.environ.get("OKG_DATA_DIR", "./data")
+    # Khi chạy qua main.py, biến OKG_INPUT_CSV được set tự động = data_split/trainval.csv
+    # nên KHÔNG cần sửa path ở đây. Giá trị dưới chỉ là mặc định khi chạy module lẻ.
+    input_csv = os.environ.get("OKG_INPUT_CSV", "./data_split/trainval.csv")
+    output_jsonl = os.path.join(DATA, "preprocessed_articles.jsonl")
+    error_log_jsonl = os.path.join(DATA, "preprocess_errors.jsonl")
 
     pre = Module1Preprocessor(
         use_pos=not no_pos,
