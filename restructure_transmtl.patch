@@ -1,0 +1,1750 @@
+From dba7950b366eca99250095335f140c26b832341e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 04:40:05 +0000
+Subject: [PATCH] =?UTF-8?q?T=C3=A1i=20c=E1=BA=A5u=20tr=C3=BAc:=20g=C3=B3i?=
+ =?UTF-8?q?=20h=C3=B3a=20package=20transmtl/=20+=20d=E1=BB=8Dn=20code=20th?=
+ =?UTF-8?q?=E1=BB=ABa?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Gom 9 file model/huấn luyện vào package transmtl/ với tên sạch:
+  TransMTL_v2->model, train_v2->train, testing_v2->tester, data_utils->data,
+  utils_v2->losses, ontokg_fusion->fusion, ontokg_data_bridge->bridge,
+  preprocessing & evaluation giữ tên. Thêm transmtl/__init__.py.
+- Cập nhật toàn bộ import nội bộ sang import gói (relative) + main.py.
+- Giữ nguyên OntoKG/, conf.py, pipeline_config.py, các entry point ở gốc;
+  CÁCH CHẠY KHÔNG ĐỔI (python run_*.py / main.py).
+- Bỏ rác: file .pyc bị track; hàm evaluate_keyphrase_lists trùng trong
+  preprocessing (dùng bản trong evaluation.py).
+- Thêm requirements.txt; cập nhật README cây thư mục + tên file.
+Đã verify: py_compile toàn bộ + phân giải mọi import nội bộ đều OK.
+---
+ .../module9_neo4j_retrieval.cpython-310.pyc   |  Bin 9543 -> 0 bytes
+ README.md                                     |   40 +-
+ main.py                                       |    4 +-
+ requirements.txt                              |   22 +
+ transmtl/__init__.py                          |   16 +
+ ontokg_data_bridge.py => transmtl/bridge.py   |    4 +-
+ data_utils.py => transmtl/data.py             |    2 +-
+ evaluation.py => transmtl/evaluation.py       |    0
+ ontokg_fusion.py => transmtl/fusion.py        |    0
+ utils_v2.py => transmtl/losses.py             |    0
+ TransMTL_v2.py => transmtl/model.py           | 1264 ++++++++---------
+ preprocessing.py => transmtl/preprocessing.py |   16 +-
+ testing_v2.py => transmtl/tester.py           |   12 +-
+ train_v2.py => transmtl/train.py              |   14 +-
+ 14 files changed, 712 insertions(+), 682 deletions(-)
+ delete mode 100644 OntoKG/__pycache__/module9_neo4j_retrieval.cpython-310.pyc
+ create mode 100644 requirements.txt
+ create mode 100644 transmtl/__init__.py
+ rename ontokg_data_bridge.py => transmtl/bridge.py (94%)
+ rename data_utils.py => transmtl/data.py (99%)
+ rename evaluation.py => transmtl/evaluation.py (100%)
+ rename ontokg_fusion.py => transmtl/fusion.py (100%)
+ rename utils_v2.py => transmtl/losses.py (100%)
+ rename TransMTL_v2.py => transmtl/model.py (97%)
+ rename preprocessing.py => transmtl/preprocessing.py (94%)
+ rename testing_v2.py => transmtl/tester.py (97%)
+ rename train_v2.py => transmtl/train.py (98%)
+
+diff --git a/OntoKG/__pycache__/module9_neo4j_retrieval.cpython-310.pyc b/OntoKG/__pycache__/module9_neo4j_retrieval.cpython-310.pyc
+deleted file mode 100644
+index 2bd47fe6ccd96b933ba9d84c93fce2e6d54b54cd..0000000000000000000000000000000000000000
+GIT binary patch
+literal 0
+HcmV?d00001
+
+literal 9543
+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
+YCglk=iT80il~6uUrIgPnQ`#^77lGYA&;S4c
+
+diff --git a/README.md b/README.md
+index 7fbec76..5c2f3b7 100644
+--- a/README.md
++++ b/README.md
+@@ -53,22 +53,24 @@ Hệ thống gồm **2 phần lớn**:
+ TransMTLOntoKG/
+ ├── pipeline_config.py     ★ CẤU HÌNH TRUNG TÂM: đường dẫn dữ liệu, Neo4j, USE_ONTOKG, thư mục output
+ ├── conf.py                ★ HYPERPARAMETER model: d_model, layers, lr, batch, MMoE...
++├── requirements.txt       Danh sách thư viện phụ thuộc
+ │
+ ├── run_ontokg.py          ★ BƯỚC 1: xây OntoKG (split + module 1‑8). Chạy 1 lần.
+ ├── run_transmtl.py        ★ BƯỚC 2: train + test TransMTL. Chạy lại nhiều lần.
+ ├── main.py                ★ Orchestrator 1 lệnh: --stage {all,split,ontokg,train,test}, --use-ontokg/--no-ontokg, --skip-existing
+ ├── split_dataset.py       Chia CSV gốc -> data_split/{train,val,test,trainval}.csv (+ cột article_id)
+ │
+-├── TransMTL_v2.py         ★ KIẾN TRÚC MODEL: Encoder/Decoder, MMoE, Copy, CRF, fusion OntoKG, beam/greedy decode
+-├── train_v2.py            Vòng lặp huấn luyện: train_model(), train_one_epoch(), validate()
+-├── testing_v2.py          Đánh giá test: run_test() -> ROUGE + keyphrase P/R/F1 (+ OntoKG bridge)
+-├── data_utils.py          Dataset + DataLoader: MultiTaskDataset, CollateCPU, get_loaders() (trả cả article_id)
+-├── preprocessing.py       Tiền xử lý: FastText embedding, BPE tokenizer, BIOES, ids<->text, keyphrase
+-├── utils_v2.py            Hàm loss + tiện ích: summary loss, key loss, gộp trọng số đa nhiệm, load checkpoint
+-├── evaluation.py          Chỉ số đánh giá: keyphrase P/R/F1, ROUGE summary
+-│
+-├── ontokg_fusion.py       ★ CẦU NỐI MODEL↔KG: GraphEncoder (R‑GCN+GATv2), GatedFusion, encode_kg_batch
+-├── ontokg_data_bridge.py  ★ OntoKGBridge: truy vấn Neo4j theo article_id -> kg_batch cho model
++├── transmtl/              ★ PACKAGE MODEL + HUẤN LUYỆN + TÍCH HỢP KG
++│   ├── __init__.py
++│   ├── model.py           ★ KIẾN TRÚC MODEL: Encoder/Decoder, MMoE, Copy, CRF, fusion OntoKG, beam/greedy
++│   ├── train.py           Vòng lặp huấn luyện: train_model(), train_one_epoch(), validate()
++│   ├── tester.py          Đánh giá test: run_test() -> ROUGE + keyphrase P/R/F1 (+ OntoKG bridge)
++│   ├── data.py            Dataset + DataLoader: MultiTaskDataset, CollateCPU, get_loaders() (trả article_id)
++│   ├── preprocessing.py   Tiền xử lý: FastText embedding, BPE tokenizer, BIOES, ids<->text, keyphrase
++│   ├── losses.py          Hàm loss + tiện ích: summary loss, key loss, gộp trọng số đa nhiệm, load checkpoint
++│   ├── evaluation.py      Chỉ số đánh giá: keyphrase P/R/F1, ROUGE summary
++│   ├── fusion.py          ★ CẦU NỐI MODEL↔KG: GraphEncoder (R‑GCN+GATv2), GatedFusion, encode_kg_batch
++│   └── bridge.py          ★ OntoKGBridge: truy vấn Neo4j theo article_id -> kg_batch cho model
+ │
+ ├── OntoKG/                ★ PIPELINE XÂY KG (9 module, xem Mục 7)
+ │   ├── module1_preprocess.py        Chuẩn hóa văn bản, tách câu/từ, POS
+@@ -190,7 +192,7 @@ OKG_WD_ALIASES=0 python run_ontokg.py    # không nạp alias Wikidata
+ 
+ ## 6. Chi tiết các file MODEL / DATA / UTIL (Phần 2 — TransMTL)
+ 
+-### 6.1 `TransMTL_v2.py` — `class TransformerMTL`
++### 6.1 `transmtl/model.py` — `class TransformerMTL`
+ Kiến trúc Transformer encoder–decoder đa nhiệm + tích hợp OntoKG.
+ - **Khối con:** `PositionalEncoding`, `MultiHeadAttention`, `FeedForward`, `EncoderLayer/Encoder`, `DecoderLayer/Decoder_Sum`, `CopyGate`, `MMoE`.
+ - **Khởi tạo quan trọng:** `emb_matrix` (FastText), `word2idx/idx2word`, `num_key_labels=5` (BIOES), `use_mmoe`, `use_copy=True`, `use_ontokg`, `kg_in_dim=768`, `kg_num_relations=9`. `cls_idx=<sos>`, `sep_idx=<eos>`.
+@@ -201,33 +203,33 @@ Kiến trúc Transformer encoder–decoder đa nhiệm + tích hợp OntoKG.
+ - **`forward(inp, tar, labels, task="both", training, kg_batch=None)`** → dict gồm `summary_logits`/`summary_log_probs`, `key_nll`/`key_decoded`, (gates nếu MMoE).
+ - **Sinh chuỗi:** `greedy_decode_batch(inp, max_len, kg_batch)` và `beam_search_generate_batch(inp, max_len, beam_size, len_penalty, n_gram_block, kg_batch)` (auto‑regressive, có copy, n‑gram blocking).
+ 
+-### 6.2 `train_v2.py`
++### 6.2 `transmtl/train.py`
+ - **`train_model(...)`** (chữ ký dài, gọi từ main/run): tạo loader (`get_loaders`), nạp FastText, dựng `TransformerMTL`, khởi tạo **`OntoKGBridge`**, optimizer **theo nhóm tham số** (summary/shared/crf, lr nhân hệ số), `weight_logits` (trọng số đa nhiệm học được, optimizer riêng), scheduler `ReduceLROnPlateau`, PCGrad. Tham số OntoKG: `use_ontokg, entity_emb_path, entity_idx_path, neo4j_uri, neo4j_pass`.
+ - **`train_one_epoch(...)`** / **`validate(...)`**: unpack batch **8‑tuple** (có `article_ids`); `kg_batch = bridge.build_kg_batch(article_ids)`; gọi model với `kg_batch`. Validate tính ROUGE qua greedy decode.
+ 
+-### 6.3 `testing_v2.py` — `run_test(...)`
++### 6.3 `transmtl/tester.py` — `run_test(...)`
+ Tạo loader, dựng model (khớp `use_ontokg`), nạp checkpoint (`load_checkpoint_state`, `strict=False`), **bridge OntoKG**, lặp test → beam/greedy sinh tóm tắt → **ROUGE‑1/2/L** (rouge_score) + map subword→word → **keyphrase P/R/F1** (`evaluate_keyphrase_lists`). Lưu `<ckpt>_test_results.txt`, trả dict kết quả.
+ 
+-### 6.4 `data_utils.py`
++### 6.4 `transmtl/data.py`
+ - **`MultiTaskDataset`**: đọc CSV, BPE tokenize (vocab_subword), sinh nhãn **BIOES** cho từ khóa (ánh xạ keyword→span token), lưu **`article_ids`** (cột `article_id`, fallback `row_xxxxx`).
+ - **`CollateCPU`**: pad batch → trả **8 phần tử**: `src, summary_ids, attn, labels, raw_texts, token_maps, word_texts, article_ids`.
+ - **`get_loaders(data_path, len_in, len_out, num_workers, batch_size, val_ratio=0.2, test_ratio=0.2, seed=42, min_freq=3, vocab_size)`** → train/val/test loader + vocab + word2idx/idx2word + `ds` (chứa `.tokenizer`). **Tự chia 60/20/20** từ CSV truyền vào (seed cố định ⇒ test held‑out tái lập được).
+ 
+-### 6.5 `preprocessing.py`
++### 6.5 `transmtl/preprocessing.py`
+ `seed_everything`, `load_fasttext_bin_embeddings(word2idx, bin_path, d_model, pad_idx)` (**KHÔNG còn synonym**), BPE tokenizer (`ensure_tokenizer_for_csv`), ánh xạ keyword→span (`find_token_span_for_keyword`), `subword_labels_to_word_labels`, `ids_to_text`, `convert_tags_to_keyphrases`.
+ 
+-### 6.6 `utils_v2.py`
++### 6.6 `transmtl/losses.py`
+ `compute_summary_loss_from_logits` (CE + label smoothing), `compute_summary_loss_from_logprobs` (NLL cho copy), `compute_key_loss_from_raw`, `compute_entropy_regularizer` (MMoE gate), **`combine_task_losses(loss_sum, key_nll, weight_logits, temp)`** (trọng số đa nhiệm học được), `ensure_decoder_sos`, `load_checkpoint_state`.
+ 
+-### 6.7 `evaluation.py`
++### 6.7 `transmtl/evaluation.py`
+ `evaluate_keyphrase_lists` (P/R/F1 theo tập cụm từ, chuẩn hóa + unique), `evaluate_summaries` (ROUGE).
+ 
+-### 6.8 `ontokg_fusion.py` (cầu nối model↔KG)
++### 6.8 `transmtl/fusion.py` (cầu nối model↔KG)
+ - **`GraphEncoder(in_dim=768, d_model, num_relations=9, num_bases=4, dropout)`**: `Linear(768→d) → RGCNConv×2 → GATv2Conv`. Cần `torch_geometric`; nếu thiếu → fallback MLP. `forward(x, edge_index, edge_type) → (N, d_model)`.
+ - **`GatedFusion(d_model, num_heads, dropout)`**: cross‑attention (query=H_tok, key/value=E_kg) + **cổng sigmoid** `gate*attn_out` + residual + LayerNorm → `H'_tok`.
+ - **`encode_kg_batch(graph_encoder, kg_batch, d_model, device)`**: mã hóa list subgraph (mỗi sample 1 subgraph hoặc None) → tensor padded `E_kg (B,N_max,d)` + `padding_mask`.
+ 
+-### 6.9 `ontokg_data_bridge.py` — `class OntoKGBridge`
++### 6.9 `transmtl/bridge.py` — `class OntoKGBridge`
+ `__init__(uri, user, password, d_model, enabled)`; nếu `enabled` → tạo `Neo4jRetriever` (module9, dim=768). **`build_kg_batch(article_ids)`** → list subgraph torch (hoặc None nếu tắt/không có). `close()`.
+ 
+ ---
+diff --git a/main.py b/main.py
+index 5edfc23..93ac5b4 100644
+--- a/main.py
++++ b/main.py
+@@ -130,7 +130,7 @@ def _ontokg_kwargs(args):
+ def stage_train(args):
+     tag = "(+OntoKG)" if args.use_ontokg else "(baseline)"
+     print("\n" + "=" * 64 + f"\n[C] TRAIN TransMTL {tag}\n" + "=" * 64)
+-    from train_v2 import train_model
++    from transmtl.train import train_model
+ 
+     train_model(
+         args.P.TRAIN_DATA_CSV, args.save_path, cfg.PAD_IDX, cfg.LABEL_SMOOTHING,
+@@ -151,7 +151,7 @@ def stage_train(args):
+ # ──────────────────────────────────────────────────────────
+ def stage_test(args):
+     print("\n" + "=" * 64 + "\n[D] TEST OFFLINE (batch)\n" + "=" * 64)
+-    from testing_v2 import run_test
++    from transmtl.tester import run_test
+ 
+     if not os.path.exists(args.save_path):
+         print(f"!!! Chưa có checkpoint {args.save_path}. Hãy train trước.")
+diff --git a/requirements.txt b/requirements.txt
+new file mode 100644
+index 0000000..080ec96
+--- /dev/null
++++ b/requirements.txt
+@@ -0,0 +1,22 @@
++# ── Lõi TransMTL (baseline, không cần OntoKG) ──
++torch>=2.0
++numpy
++pandas
++tokenizers
++fasttext
++pytorch-crf
++rouge-score
++underthesea
++
++# ── Phần OntoKG (chỉ cần khi USE_ONTOKG = True) ──
++transformers
++torch-geometric
++pykeen
++umap-learn
++hdbscan
++scikit-learn
++rdflib
++networkx
++neo4j
++requests
++# phonlp   # tuỳ chọn (NER/parsing tiếng Việt, khá nặng)
+diff --git a/transmtl/__init__.py b/transmtl/__init__.py
+new file mode 100644
+index 0000000..da891fe
+--- /dev/null
++++ b/transmtl/__init__.py
+@@ -0,0 +1,16 @@
++# transmtl/ — gói model + huấn luyện + dữ liệu + tích hợp OntoKG
++"""
++Package TransMTL: kiến trúc model đa nhiệm (tóm tắt + từ khóa) và toàn bộ
++thành phần huấn luyện/đánh giá/tích hợp đồ thị tri thức.
++
++Module:
++  model        — TransformerMTL (Encoder/Decoder, MMoE, Copy, CRF, fusion OntoKG)
++  train        — train_model(), train_one_epoch(), validate()
++  tester       — run_test() đánh giá ROUGE + keyphrase
++  data         — MultiTaskDataset, get_loaders()
++  preprocessing— FastText embedding, BPE, BIOES, ids<->text
++  losses       — hàm mất mát + tiện ích huấn luyện
++  evaluation   — chỉ số keyphrase / ROUGE
++  fusion       — GraphEncoder (R-GCN+GATv2) + GatedFusion
++  bridge       — OntoKGBridge: truy vấn Neo4j theo article_id
++"""
+diff --git a/ontokg_data_bridge.py b/transmtl/bridge.py
+similarity index 94%
+rename from ontokg_data_bridge.py
+rename to transmtl/bridge.py
+index 0530381..758c8ef 100644
+--- a/ontokg_data_bridge.py
++++ b/transmtl/bridge.py
+@@ -3,9 +3,9 @@
+ Cau noi giua dataset TransMTL va OntoKG (Neo4j).
+ Mat xich con thieu de tich hop: tu article_id -> truy van Neo4j -> kg_batch.
+ 
+-Cach dung trong train_v2.py / testing_v2.py:
++Cach dung trong transmtl/train.py / transmtl/tester.py:
+ 
+-    from ontokg_data_bridge import OntoKGBridge
++    from transmtl.bridge import OntoKGBridge
+ 
+     bridge = OntoKGBridge(
+         uri="bolt://localhost:7687", user="neo4j", password="password",
+diff --git a/data_utils.py b/transmtl/data.py
+similarity index 99%
+rename from data_utils.py
+rename to transmtl/data.py
+index e7bc575..bcbfc78 100644
+--- a/data_utils.py
++++ b/transmtl/data.py
+@@ -9,7 +9,7 @@ from torch.utils.data import Dataset, DataLoader
+ from torch.nn.utils.rnn import pad_sequence
+ from tokenizers import ByteLevelBPETokenizer
+ from conf import IGNORE_INDEX, LABELS, LEN_IN, LEN_OUT, PAD_IDX
+-from preprocessing import *
++from .preprocessing import *
+ logger = logging.getLogger("data_utils")
+ logger.setLevel(logging.INFO)
+ # -------------------------
+diff --git a/evaluation.py b/transmtl/evaluation.py
+similarity index 100%
+rename from evaluation.py
+rename to transmtl/evaluation.py
+diff --git a/ontokg_fusion.py b/transmtl/fusion.py
+similarity index 100%
+rename from ontokg_fusion.py
+rename to transmtl/fusion.py
+diff --git a/utils_v2.py b/transmtl/losses.py
+similarity index 100%
+rename from utils_v2.py
+rename to transmtl/losses.py
+diff --git a/TransMTL_v2.py b/transmtl/model.py
+similarity index 97%
+rename from TransMTL_v2.py
+rename to transmtl/model.py
+index 3f22031..05cf0bc 100644
+--- a/TransMTL_v2.py
++++ b/transmtl/model.py
+@@ -1,633 +1,633 @@
+-# TransMTL.py  (đã tích hợp OntoKG + bỏ synonym)
+-import math
+-import numpy as np
+-import torch
+-import torch.nn as nn
+-import torch.nn.functional as F
+-from torchcrf import CRF
+-
+-# OntoKG components (additive — kg_batch=None thì chạy như baseline)
+-from ontokg_fusion import GraphEncoder, GatedFusion, encode_kg_batch
+-
+-# ----------------- Utilities -----------------
+-def create_masks(inp, tar, pad_idx=0, device=None):
+-    if device is None:
+-        device = inp.device
+-    enc_padding_mask = (inp == pad_idx).to(device).unsqueeze(1).unsqueeze(2)
+-    dec_padding_mask = enc_padding_mask.clone()
+-    seq_len_out = tar.size(1)
+-    look_ahead = torch.triu(torch.ones((seq_len_out, seq_len_out), device=device), diagonal=1).bool()
+-    look_ahead = look_ahead.unsqueeze(0).unsqueeze(1)
+-    tar_padding_mask = (tar == pad_idx).to(device).unsqueeze(1).unsqueeze(2)
+-    look_ahead_mask = look_ahead | (tar_padding_mask.expand(-1, -1, seq_len_out, seq_len_out))
+-    return enc_padding_mask, look_ahead_mask, dec_padding_mask
+-
+-
+-class PositionalEncoding(nn.Module):
+-    def __init__(self, d_model, dropout=0.1, max_len=5000):
+-        super().__init__()
+-        self.dropout = nn.Dropout(p=dropout)
+-        pe = torch.zeros(max_len, d_model)
+-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+-        pe[:, 0::2] = torch.sin(position * div_term)
+-        pe[:, 1::2] = torch.cos(position * div_term)
+-        self.register_buffer("pe", pe.unsqueeze(0))
+-
+-    def forward(self, x):
+-        x = x + self.pe[:, :x.size(1), :]
+-        return self.dropout(x)
+-
+-
+-# ----------------- Transformer Blocks -----------------
+-class MultiHeadAttention(nn.Module):
+-    def __init__(self, d_model, num_heads):
+-        super().__init__()
+-        assert d_model % num_heads == 0
+-        self.num_heads = num_heads
+-        self.d_model = d_model
+-        self.depth = d_model // num_heads
+-        self.Wq = nn.Linear(d_model, d_model)
+-        self.Wk = nn.Linear(d_model, d_model)
+-        self.Wv = nn.Linear(d_model, d_model)
+-        self.out = nn.Linear(d_model, d_model)
+-
+-    def split_heads(self, x):
+-        B, L, D = x.size()
+-        return x.view(B, L, self.num_heads, self.depth).transpose(1, 2)
+-
+-    def forward(self, q, k, v, mask=None):
+-        B = q.size(0)
+-        Q = self.split_heads(self.Wq(q))
+-        K = self.split_heads(self.Wk(k))
+-        V = self.split_heads(self.Wv(v))
+-        scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.depth)
+-        if mask is not None:
+-            scores = scores.masked_fill(mask == 1, -1e9)
+-        attn = F.softmax(scores, dim=-1)
+-        out = torch.matmul(attn, V)
+-        out = out.transpose(1, 2).contiguous().view(B, -1, self.d_model)
+-        return self.out(out), attn
+-
+-
+-class FeedForward(nn.Module):
+-    def __init__(self, d_model, dff):
+-        super().__init__()
+-        self.fc1 = nn.Linear(d_model, dff)
+-        self.fc2 = nn.Linear(dff, d_model)
+-
+-    def forward(self, x):
+-        return self.fc2(F.gelu(self.fc1(x)))
+-
+-
+-class EncoderLayer(nn.Module):
+-    def __init__(self, d_model, num_heads, dff, dropout=0.1):
+-        super().__init__()
+-        self.mha = MultiHeadAttention(d_model, num_heads)
+-        self.ffn = FeedForward(d_model, dff)
+-        self.ln1 = nn.LayerNorm(d_model)
+-        self.ln2 = nn.LayerNorm(d_model)
+-        self.drop1 = nn.Dropout(dropout)
+-        self.drop2 = nn.Dropout(dropout)
+-
+-    def forward(self, x, training=True, mask=None):
+-        attn_out, _ = self.mha(x, x, x, mask)
+-        attn_out = self.drop1(attn_out) if training else attn_out
+-        out1 = self.ln1(x + attn_out)
+-        ffn_out = self.ffn(out1)
+-        ffn_out = self.drop2(ffn_out) if training else ffn_out
+-        return self.ln2(out1 + ffn_out)
+-
+-
+-class Encoder(nn.Module):
+-    def __init__(self, num_layers, d_model, num_heads, dff, max_pos, dropout=0.1):
+-        super().__init__()
+-        self.layers = nn.ModuleList(
+-            [EncoderLayer(d_model, num_heads, dff, dropout) for _ in range(num_layers)]
+-        )
+-
+-    def forward(self, x, training=True, mask=None):
+-        out = x
+-        for layer in self.layers:
+-            out = layer(out, training, mask)
+-        return out
+-
+-
+-class DecoderLayer(nn.Module):
+-    def __init__(self, d_model, num_heads, dff, dropout=0.1):
+-        super().__init__()
+-        self.mha1 = MultiHeadAttention(d_model, num_heads)
+-        self.mha2 = MultiHeadAttention(d_model, num_heads)
+-        self.ffn = FeedForward(d_model, dff)
+-        self.ln1 = nn.LayerNorm(d_model)
+-        self.ln2 = nn.LayerNorm(d_model)
+-        self.ln3 = nn.LayerNorm(d_model)
+-        self.drop1 = nn.Dropout(dropout)
+-        self.drop2 = nn.Dropout(dropout)
+-        self.drop3 = nn.Dropout(dropout)
+-
+-    def forward(self, x, enc_out, training=True, look_ahead_mask=None, padding_mask=None):
+-        attn1, _ = self.mha1(x, x, x, look_ahead_mask)
+-        attn1 = self.drop1(attn1) if training else attn1
+-        out1 = self.ln1(x + attn1)
+-
+-        attn2, cross_attn_w = self.mha2(out1, enc_out, enc_out, padding_mask)
+-        attn2 = self.drop2(attn2) if training else attn2
+-        out2 = self.ln2(out1 + attn2)
+-
+-        ffn_out = self.ffn(out2)
+-        ffn_out = self.drop3(ffn_out) if training else ffn_out
+-        out3 = self.ln3(out2 + ffn_out)
+-
+-        cross_attn_avg = cross_attn_w.mean(dim=1)
+-        return out3, cross_attn_avg
+-
+-
+-class Decoder_Sum(nn.Module):
+-    def __init__(self, num_layers, d_model, num_heads, dff, max_len_out, dropout=0.1):
+-        super().__init__()
+-        self.layers = nn.ModuleList(
+-            [DecoderLayer(d_model, num_heads, dff, dropout) for _ in range(num_layers)]
+-        )
+-        self.ln_final = nn.LayerNorm(d_model)
+-
+-    def forward(self, x, enc_out, training=True, look_ahead_mask=None, padding_mask=None):
+-        out = x
+-        last_cross_attn = None
+-        for layer in self.layers:
+-            out, cross_attn = layer(out, enc_out, training, look_ahead_mask, padding_mask)
+-            last_cross_attn = cross_attn
+-        out = self.ln_final(out)
+-        return out, last_cross_attn
+-
+-
+-# ----------------- Copy Gate -----------------
+-class CopyGate(nn.Module):
+-    def __init__(self, d_model):
+-        super().__init__()
+-        self.linear = nn.Linear(d_model * 3, 1, bias=True)
+-
+-    def forward(self, dec_hidden, context, input_emb):
+-        gate_input = torch.cat([dec_hidden, context, input_emb], dim=-1)
+-        return torch.sigmoid(self.linear(gate_input))
+-
+-
+-# ----------------- MMoE -----------------
+-class MMoE(nn.Module):
+-    def __init__(self, input_dim, num_experts=4, expert_hidden=None, num_tasks=2,
+-                 gate_hidden=None, dropout=0.0, use_residual=True,
+-                 gate_temperature=1.0, residual_scale=0.1):
+-        super().__init__()
+-        self.num_tasks = num_tasks
+-        self.gate_temperature = gate_temperature
+-        self.use_residual = use_residual
+-        self.residual_scale = residual_scale
+-
+-        if expert_hidden is None: expert_hidden = input_dim * 4
+-        if gate_hidden is None:   gate_hidden   = max(input_dim // 4, 32)
+-
+-        self.experts = nn.ModuleList([
+-            nn.Sequential(
+-                nn.Linear(input_dim, expert_hidden), nn.ReLU(),
+-                nn.Dropout(dropout), nn.Linear(expert_hidden, input_dim),
+-            ) for _ in range(num_experts)
+-        ])
+-        self.gates = nn.ModuleList([
+-            nn.Sequential(
+-                nn.Linear(input_dim, gate_hidden), nn.ReLU(),
+-                nn.Linear(gate_hidden, num_experts),
+-            ) for _ in range(num_tasks)
+-        ])
+-        self.output_ln = nn.ModuleList([nn.LayerNorm(input_dim) for _ in range(num_tasks)])
+-
+-    def forward(self, x, mask=None, return_gates=False):
+-        if mask is not None:
+-            maskf = mask.float().unsqueeze(-1)
+-            pooled = (x * maskf).sum(dim=1) / maskf.sum(dim=1).clamp(min=1.0)
+-        else:
+-            pooled = x.mean(dim=1)
+-
+-        expert_stack = torch.cat([e(x).unsqueeze(2) for e in self.experts], dim=2)
+-
+-        task_outputs = []
+-        gate_probs_list = []
+-        for t in range(self.num_tasks):
+-            gate_logits = self.gates[t](pooled) / self.gate_temperature
+-            gate_probs = F.softmax(gate_logits, dim=-1)
+-            gate_probs_list.append(gate_probs)
+-            gw = gate_probs.unsqueeze(1).unsqueeze(-1)
+-            weighted = (expert_stack * gw).sum(dim=2)
+-            if self.use_residual:
+-                weighted = weighted + self.residual_scale * x
+-            task_outputs.append(self.output_ln[t](weighted))
+-
+-        if return_gates:
+-            return task_outputs, gate_probs_list
+-        return task_outputs
+-
+-
+-# ----------------- Main Model -----------------
+-class TransformerMTL(nn.Module):
+-    def __init__(
+-        self,
+-        num_layers=4, d_model=512, num_heads=8, dff=2048,
+-        max_len_in=1024, max_len_out=128, dropout=0.1,
+-        emb_matrix=None, word2idx=None, idx2word=None,
+-        freeze_embeddings=False, num_key_labels=5,
+-        mmoe_num_experts=4, mmoe_expert_hidden=None,
+-        mmoe_gate_hidden=None, pad_idx=0,
+-        mmoe_dropout=0.0, mmoe_use_residual=True,
+-        mmoe_gate_temperature=1.0, mmoe_residual_scale=0.1,
+-        use_mmoe=True,
+-        use_copy=True,
+-        use_ontokg=False,        # OntoKG: bật tích hợp đồ thị tri thức
+-        kg_in_dim=768,           # chiều embedding entity (từ Module 7)
+-        kg_num_relations=9,      # số loại quan hệ ngữ nghĩa
+-    ):
+-        super().__init__()
+-        if word2idx is None or idx2word is None:
+-            raise ValueError("TransformerMTL yêu cầu word2idx và idx2word.")
+-
+-        self.word2idx   = word2idx
+-        self.idx2word   = idx2word
+-        self.vocab_size = len(idx2word)
+-        self.pad_idx    = int(self.word2idx.get("<pad>", pad_idx))
+-        self.cls_idx    = self.word2idx.get("<sos>", None)
+-        self.sep_idx    = self.word2idx.get("<eos>", None)
+-        self.max_len_out = max_len_out
+-        self.use_mmoe   = use_mmoe
+-        self.use_copy   = use_copy
+-        self.d_model    = d_model
+-
+-        # 1. Embeddings
+-        self.embedding = nn.Embedding(self.vocab_size, d_model, padding_idx=self.pad_idx)
+-        if emb_matrix is not None:
+-            if isinstance(emb_matrix, np.ndarray):
+-                emb_tensor = torch.from_numpy(emb_matrix).float()
+-            else:
+-                emb_tensor = emb_matrix
+-            if emb_tensor.size(1) != d_model:
+-                raise ValueError(f"emb_matrix dim ({emb_tensor.size(1)}) != d_model ({d_model})")
+-            self.embedding.weight.data.copy_(emb_tensor)
+-            print(f"Model: Loaded embedding matrix with shape {emb_tensor.shape}")
+-        if freeze_embeddings:
+-            self.embedding.weight.requires_grad = False
+-            print("Model: Embeddings are frozen.")
+-
+-        self.pos_encoding = PositionalEncoding(d_model, dropout, max_len=max_len_in)
+-
+-        # 2. Shared Encoder
+-        self.encoder = Encoder(num_layers, d_model, num_heads, dff, max_len_in, dropout)
+-
+-        # 2b. OntoKG components (additive)
+-        self.use_ontokg = use_ontokg
+-        if use_ontokg:
+-            self.graph_encoder = GraphEncoder(
+-                in_dim=kg_in_dim, d_model=d_model,
+-                num_relations=kg_num_relations, dropout=dropout,
+-            )
+-            self.gated_fusion = GatedFusion(d_model, num_heads=num_heads, dropout=dropout)
+-            print("Model: OntoKG fusion ENABLED.")
+-        else:
+-            self.graph_encoder = None
+-            self.gated_fusion  = None
+-
+-        # 3. MMoE
+-        if self.use_mmoe:
+-            self.mmoe = MMoE(
+-                input_dim=d_model, num_experts=mmoe_num_experts,
+-                expert_hidden=mmoe_expert_hidden, num_tasks=2,
+-                gate_hidden=mmoe_gate_hidden, dropout=mmoe_dropout,
+-                use_residual=mmoe_use_residual,
+-                gate_temperature=mmoe_gate_temperature,
+-                residual_scale=mmoe_residual_scale,
+-            )
+-        else:
+-            self.mmoe = None
+-            print("Model: MMoE DISABLED — direct encoder-decoder.")
+-
+-        # 4. Summary decoder
+-        self.decoder_sum    = Decoder_Sum(num_layers, d_model, num_heads, dff, max_len_out, dropout)
+-        self.final_sum_proj = nn.Linear(d_model, self.vocab_size)
+-
+-        # Copy Gate
+-        if self.use_copy:
+-            self.copy_gate = CopyGate(d_model)
+-            print("Model: Copy mechanism ENABLED.")
+-        else:
+-            self.copy_gate = None
+-
+-        # 5. Keyphrase head (CRF)
+-        self.final_key_proj = nn.Linear(d_model, num_key_labels)
+-        self.crf_decoder    = CRF(num_key_labels, batch_first=True)
+-
+-        # Xavier init
+-        for p in self.parameters():
+-            if p.dim() > 1 and p.requires_grad:
+-                if id(p) == id(self.embedding.weight) and emb_matrix is not None:
+-                    continue
+-                nn.init.xavier_uniform_(p)
+-
+-    # ------------------------------------------------------------------ #
+-    #  OntoKG fusion helper: H_tok + gated(cross_attn(H_tok, E_kg))      #
+-    # ------------------------------------------------------------------ #
+-    def _apply_ontokg_fusion(self, enc_out_shared, kg_batch, device):
+-        if self.use_ontokg and self.gated_fusion is not None and kg_batch is not None:
+-            E_kg, kg_mask = encode_kg_batch(
+-                self.graph_encoder, kg_batch, self.d_model, device
+-            )
+-            return self.gated_fusion(enc_out_shared, E_kg, kg_mask)
+-        return enc_out_shared
+-
+-    # ------------------------------------------------------------------ #
+-    #  Helper nội bộ: tính copy-augmented log-probs                      #
+-    # ------------------------------------------------------------------ #
+-    def _apply_copy(self, raw_logits, dec_out, cross_attn, tar_emb_pe, enc_out_sum, src):
+-        device = raw_logits.device
+-        B, T_dec, _ = raw_logits.size()
+-
+-        context = torch.bmm(cross_attn, enc_out_sum)
+-
+-        tar_trunc = tar_emb_pe[:, :T_dec, :]
+-        p_gen     = self.copy_gate(dec_out, context, tar_trunc)
+-
+-        vocab_probs = torch.softmax(raw_logits, dim=-1)
+-
+-        copy_dist   = torch.zeros(B, T_dec, self.vocab_size, device=device)
+-        src_safe    = src.clamp(0, self.vocab_size - 1)
+-        src_expand  = src_safe.unsqueeze(1).expand(-1, T_dec, -1)
+-        copy_dist.scatter_add_(2, src_expand, cross_attn)
+-
+-        final_probs = p_gen * vocab_probs + (1.0 - p_gen) * copy_dist
+-        return torch.log(final_probs.clamp(min=1e-9))
+-
+-    # ------------------------------------------------------------------ #
+-    #  Forward                                                            #
+-    # ------------------------------------------------------------------ #
+-    def forward(self, inp, tar=None, labels=None, task="both", training=True, kg_batch=None):
+-        device           = inp.device
+-        enc_padding_mask = (inp == self.pad_idx).to(device).unsqueeze(1).unsqueeze(2)
+-
+-        # 1. Encode
+-        x = self.embedding(inp) * math.sqrt(self.d_model)
+-        x = self.pos_encoding(x)
+-        enc_out_shared = self.encoder(x, training=training, mask=enc_padding_mask)
+-
+-        # 1b. OntoKG fusion (chỉ khi bật + có kg_batch)
+-        enc_out_shared = self._apply_ontokg_fusion(enc_out_shared, kg_batch, device)
+-
+-        # 2. MMoE routing
+-        gate_probs = None
+-        if self.use_mmoe:
+-            mask_tokens            = (inp != self.pad_idx)
+-            mmoe_outs, gate_probs  = self.mmoe(enc_out_shared, mask=mask_tokens, return_gates=True)
+-            enc_out_sum = mmoe_outs[0]
+-            enc_out_key = mmoe_outs[1]
+-        else:
+-            enc_out_sum = enc_out_shared
+-            enc_out_key = enc_out_shared
+-
+-        out = {"mmoe_gate_probs": gate_probs}
+-
+-        # 3. Summary task
+-        if task in ["sum", "both"]:
+-            if tar is None:
+-                out["enc_out_sum"] = enc_out_sum
+-            else:
+-                _, look_ahead_mask, _ = create_masks(inp, tar, self.pad_idx, device)
+-                tar_emb    = self.embedding(tar) * math.sqrt(self.d_model)
+-                tar_emb_pe = self.pos_encoding(tar_emb)
+-
+-                dec_out, cross_attn = self.decoder_sum(
+-                    tar_emb_pe, enc_out_sum,
+-                    training=training,
+-                    look_ahead_mask=look_ahead_mask,
+-                    padding_mask=enc_padding_mask,
+-                )
+-                raw_logits = self.final_sum_proj(dec_out)
+-                out["summary_logits"] = raw_logits
+-
+-                if self.use_copy and cross_attn is not None:
+-                    out["summary_log_probs"] = self._apply_copy(
+-                        raw_logits, dec_out, cross_attn, tar_emb_pe, enc_out_sum, inp
+-                    )
+-
+-        # 4. Keyword task (CRF)
+-        if task in ["key", "both"]:
+-            key_emissions          = self.final_key_proj(enc_out_key)
+-            out["key_emissions"]   = key_emissions
+-            mask_crf               = (inp != self.pad_idx).bool().to(device)
+-            mask_crf[:, 0]         = True
+-
+-            if labels is not None:
+-                if labels.size(1) > key_emissions.size(1):
+-                    labels = labels[:, :key_emissions.size(1)]
+-                labels_safe            = labels.clone()
+-                labels_safe[labels_safe < 0] = 0
+-                log_likelihood         = self.crf_decoder(
+-                    key_emissions, labels_safe, mask=mask_crf, reduction="token_mean"
+-                )
+-                out["key_nll"] = -log_likelihood
+-
+-            if not training:
+-                decoded_lists = self.crf_decoder.decode(key_emissions, mask=mask_crf)
+-                max_l         = key_emissions.size(1)
+-                padded        = np.zeros((len(decoded_lists), max_l), dtype=int)
+-                for i, seq in enumerate(decoded_lists):
+-                    if len(seq) > 0:
+-                        padded[i, :len(seq)] = seq
+-                out["key_decoded"] = torch.tensor(padded, device=device)
+-
+-        return out
+-
+-    # ------------------------------------------------------------------ #
+-    #  Greedy auto-regressive decode                                      #
+-    # ------------------------------------------------------------------ #
+-    @torch.no_grad()
+-    def greedy_decode_batch(self, inp, max_len=None, kg_batch=None):
+-        if max_len is None:
+-            max_len = self.max_len_out
+-        self.eval()
+-        device = inp.device
+-        B      = inp.size(0)
+-
+-        enc_padding_mask = (inp == self.pad_idx).to(device).unsqueeze(1).unsqueeze(2)
+-        x = self.embedding(inp) * math.sqrt(self.d_model)
+-        x = self.pos_encoding(x)
+-        enc_out_shared = self.encoder(x, training=False, mask=enc_padding_mask)
+-
+-        # OntoKG fusion
+-        enc_out_shared = self._apply_ontokg_fusion(enc_out_shared, kg_batch, device)
+-
+-        if self.use_mmoe:
+-            mask_tokens = (inp != self.pad_idx)
+-            mmoe_outs   = self.mmoe(enc_out_shared, mask=mask_tokens, return_gates=False)
+-            enc_out_sum = mmoe_outs[0]
+-        else:
+-            enc_out_sum = enc_out_shared
+-
+-        cls_token = self.cls_idx if self.cls_idx is not None else 1
+-        dec_in    = torch.full((B, 1), cls_token, dtype=torch.long, device=device)
+-        finished  = torch.zeros(B, dtype=torch.bool, device=device)
+-
+-        for _ in range(max_len - 1):
+-            T          = dec_in.size(1)
+-            look_ahead = (
+-                torch.triu(torch.ones(T, T, device=device), diagonal=1)
+-                .bool().unsqueeze(0).unsqueeze(1)
+-            )
+-            tar_emb    = self.embedding(dec_in) * math.sqrt(self.d_model)
+-            tar_emb_pe = self.pos_encoding(tar_emb)
+-
+-            dec_out, cross_attn = self.decoder_sum(
+-                tar_emb_pe, enc_out_sum,
+-                training=False,
+-                look_ahead_mask=look_ahead,
+-                padding_mask=enc_padding_mask,
+-            )
+-
+-            last_hidden = dec_out[:, -1:, :]
+-            raw_logits  = self.final_sum_proj(last_hidden)
+-
+-            if self.use_copy and cross_attn is not None:
+-                last_cross  = cross_attn[:, -1:, :]
+-                context     = torch.bmm(last_cross, enc_out_sum)
+-                last_emb    = tar_emb_pe[:, -1:, :]
+-                p_gen       = self.copy_gate(last_hidden, context, last_emb)
+-
+-                vocab_probs = torch.softmax(raw_logits, dim=-1)
+-                copy_dist   = torch.zeros(B, 1, self.vocab_size, device=device)
+-                src_safe    = inp.clamp(0, self.vocab_size - 1).unsqueeze(1)
+-                copy_dist.scatter_add_(2, src_safe, last_cross)
+-
+-                final_probs = p_gen * vocab_probs + (1.0 - p_gen) * copy_dist
+-                next_token  = final_probs.squeeze(1).argmax(dim=-1)
+-            else:
+-                next_token = raw_logits.squeeze(1).argmax(dim=-1)
+-
+-            if self.sep_idx is not None:
+-                finished = finished | (next_token == self.sep_idx)
+-
+-            dec_in = torch.cat([dec_in, next_token.unsqueeze(1)], dim=1)
+-
+-            if self.sep_idx is not None and finished.all():
+-                break
+-
+-        results = []
+-        for b in range(B):
+-            seq = dec_in[b, 1:].cpu().tolist()
+-            if self.sep_idx is not None and self.sep_idx in seq:
+-                seq = seq[: seq.index(self.sep_idx)]
+-            results.append(seq)
+-        return results
+-
+-    # ------------------------------------------------------------------ #
+-    #  Beam Search với copy mechanism                                     #
+-    # ------------------------------------------------------------------ #
+-    @torch.no_grad()
+-    def beam_search_generate_batch(self, inp, max_len, beam_size=4, len_penalty=0.6,
+-                                   n_gram_block=3, kg_batch=None):
+-        self.eval()
+-        device     = inp.device
+-        batch_size = inp.size(0)
+-
+-        enc_padding_mask = (inp == self.pad_idx).to(device).unsqueeze(1).unsqueeze(2)
+-        x = self.embedding(inp) * math.sqrt(self.d_model)
+-        x = self.pos_encoding(x)
+-        enc_out_shared = self.encoder(x, training=False, mask=enc_padding_mask)
+-
+-        # OntoKG fusion
+-        enc_out_shared = self._apply_ontokg_fusion(enc_out_shared, kg_batch, device)
+-
+-        if self.use_mmoe:
+-            mask_tokens = (inp != self.pad_idx)
+-            mmoe_outs   = self.mmoe(enc_out_shared, mask=mask_tokens, return_gates=False)
+-            enc_out_sum = mmoe_outs[0]
+-        else:
+-            enc_out_sum = enc_out_shared
+-
+-        enc_out_exp      = enc_out_sum.repeat_interleave(beam_size, dim=0)
+-        enc_pad_mask_exp = enc_padding_mask.repeat_interleave(beam_size, dim=0)
+-        src_exp          = inp.repeat_interleave(beam_size, dim=0)
+-
+-        cls_token     = self.cls_idx if self.cls_idx is not None else 1
+-        decoder_input = torch.full(
+-            (batch_size * beam_size, 1), cls_token, dtype=torch.long, device=device
+-        )
+-        beam_scores = torch.zeros((batch_size, beam_size), dtype=torch.float, device=device)
+-        beam_scores[:, 1:] = -1e9
+-        beam_scores = beam_scores.view(-1)
+-        done = [False] * (batch_size * beam_size)
+-
+-        for step in range(max_len):
+-            T = decoder_input.size(1)
+-            look_ahead = (
+-                torch.triu(torch.ones(T, T, device=device), diagonal=1)
+-                .bool().unsqueeze(0).unsqueeze(1)
+-            )
+-            tar_emb    = self.embedding(decoder_input) * math.sqrt(self.d_model)
+-            tar_emb_pe = self.pos_encoding(tar_emb)
+-
+-            dec_out, cross_attn = self.decoder_sum(
+-                tar_emb_pe, enc_out_exp,
+-                training=False,
+-                look_ahead_mask=look_ahead,
+-                padding_mask=enc_pad_mask_exp,
+-            )
+-
+-            last_hidden = dec_out[:, -1:, :]
+-            raw_logits  = self.final_sum_proj(last_hidden)
+-
+-            if self.use_copy and cross_attn is not None:
+-                last_cross = cross_attn[:, -1:, :]
+-                context    = torch.bmm(last_cross, enc_out_exp)
+-                last_emb   = tar_emb_pe[:, -1:, :]
+-                p_gen      = self.copy_gate(last_hidden, context, last_emb)
+-
+-                vocab_probs = torch.softmax(raw_logits, dim=-1)
+-                Bb = batch_size * beam_size
+-                copy_dist = torch.zeros(Bb, 1, self.vocab_size, device=device)
+-                src_safe  = src_exp.clamp(0, self.vocab_size - 1).unsqueeze(1)
+-                copy_dist.scatter_add_(2, src_safe, last_cross)
+-
+-                final_probs = p_gen * vocab_probs + (1.0 - p_gen) * copy_dist
+-                log_probs   = torch.log(final_probs.clamp(min=1e-9)).squeeze(1)
+-            else:
+-                log_probs = F.log_softmax(raw_logits.squeeze(1), dim=-1)
+-
+-            if n_gram_block > 0 and T >= n_gram_block:
+-                cur_seqs = decoder_input.cpu().numpy()
+-                for idx in range(batch_size * beam_size):
+-                    if done[idx]: continue
+-                    seq        = cur_seqs[idx].tolist()
+-                    cur_prefix = tuple(seq[-(n_gram_block - 1):])
+-                    for i in range(len(seq) - n_gram_block + 1):
+-                        if tuple(seq[i: i + n_gram_block - 1]) == cur_prefix:
+-                            log_probs[idx, seq[i + n_gram_block - 1]] = -float("inf")
+-
+-            next_scores = (beam_scores.unsqueeze(-1) + log_probs).view(
+-                batch_size, beam_size * self.vocab_size
+-            )
+-            top_scores, top_indices = torch.topk(next_scores, beam_size, dim=1)
+-
+-            beam_indices  = top_indices // self.vocab_size
+-            token_indices = top_indices % self.vocab_size
+-            batch_offset  = (torch.arange(batch_size, device=device) * beam_size).unsqueeze(1)
+-            global_beam   = (batch_offset + beam_indices).view(-1)
+-
+-            decoder_input = torch.cat([decoder_input[global_beam], token_indices.view(-1, 1)], dim=1)
+-            beam_scores   = top_scores.view(-1)
+-
+-            prior_done = [done[i] for i in global_beam.cpu().numpy()]
+-            just_done  = (token_indices.view(-1) == self.sep_idx).cpu().numpy()
+-            done       = [p or j for p, j in zip(prior_done, just_done)]
+-            if all(done):
+-                break
+-
+-        final_sequences = decoder_input.view(batch_size, beam_size, -1)
+-        final_scores    = beam_scores.view(batch_size, beam_size)
+-        lengths         = (final_sequences != self.pad_idx).sum(dim=2).float()
+-        scores_pen      = final_scores / (lengths ** len_penalty + 1e-8)
+-        best_idx        = scores_pen.argmax(dim=1)
+-
++# TransMTL.py  (đã tích hợp OntoKG + bỏ synonym)
++import math
++import numpy as np
++import torch
++import torch.nn as nn
++import torch.nn.functional as F
++from torchcrf import CRF
++
++# OntoKG components (additive — kg_batch=None thì chạy như baseline)
++from .fusion import GraphEncoder, GatedFusion, encode_kg_batch
++
++# ----------------- Utilities -----------------
++def create_masks(inp, tar, pad_idx=0, device=None):
++    if device is None:
++        device = inp.device
++    enc_padding_mask = (inp == pad_idx).to(device).unsqueeze(1).unsqueeze(2)
++    dec_padding_mask = enc_padding_mask.clone()
++    seq_len_out = tar.size(1)
++    look_ahead = torch.triu(torch.ones((seq_len_out, seq_len_out), device=device), diagonal=1).bool()
++    look_ahead = look_ahead.unsqueeze(0).unsqueeze(1)
++    tar_padding_mask = (tar == pad_idx).to(device).unsqueeze(1).unsqueeze(2)
++    look_ahead_mask = look_ahead | (tar_padding_mask.expand(-1, -1, seq_len_out, seq_len_out))
++    return enc_padding_mask, look_ahead_mask, dec_padding_mask
++
++
++class PositionalEncoding(nn.Module):
++    def __init__(self, d_model, dropout=0.1, max_len=5000):
++        super().__init__()
++        self.dropout = nn.Dropout(p=dropout)
++        pe = torch.zeros(max_len, d_model)
++        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
++        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
++        pe[:, 0::2] = torch.sin(position * div_term)
++        pe[:, 1::2] = torch.cos(position * div_term)
++        self.register_buffer("pe", pe.unsqueeze(0))
++
++    def forward(self, x):
++        x = x + self.pe[:, :x.size(1), :]
++        return self.dropout(x)
++
++
++# ----------------- Transformer Blocks -----------------
++class MultiHeadAttention(nn.Module):
++    def __init__(self, d_model, num_heads):
++        super().__init__()
++        assert d_model % num_heads == 0
++        self.num_heads = num_heads
++        self.d_model = d_model
++        self.depth = d_model // num_heads
++        self.Wq = nn.Linear(d_model, d_model)
++        self.Wk = nn.Linear(d_model, d_model)
++        self.Wv = nn.Linear(d_model, d_model)
++        self.out = nn.Linear(d_model, d_model)
++
++    def split_heads(self, x):
++        B, L, D = x.size()
++        return x.view(B, L, self.num_heads, self.depth).transpose(1, 2)
++
++    def forward(self, q, k, v, mask=None):
++        B = q.size(0)
++        Q = self.split_heads(self.Wq(q))
++        K = self.split_heads(self.Wk(k))
++        V = self.split_heads(self.Wv(v))
++        scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.depth)
++        if mask is not None:
++            scores = scores.masked_fill(mask == 1, -1e9)
++        attn = F.softmax(scores, dim=-1)
++        out = torch.matmul(attn, V)
++        out = out.transpose(1, 2).contiguous().view(B, -1, self.d_model)
++        return self.out(out), attn
++
++
++class FeedForward(nn.Module):
++    def __init__(self, d_model, dff):
++        super().__init__()
++        self.fc1 = nn.Linear(d_model, dff)
++        self.fc2 = nn.Linear(dff, d_model)
++
++    def forward(self, x):
++        return self.fc2(F.gelu(self.fc1(x)))
++
++
++class EncoderLayer(nn.Module):
++    def __init__(self, d_model, num_heads, dff, dropout=0.1):
++        super().__init__()
++        self.mha = MultiHeadAttention(d_model, num_heads)
++        self.ffn = FeedForward(d_model, dff)
++        self.ln1 = nn.LayerNorm(d_model)
++        self.ln2 = nn.LayerNorm(d_model)
++        self.drop1 = nn.Dropout(dropout)
++        self.drop2 = nn.Dropout(dropout)
++
++    def forward(self, x, training=True, mask=None):
++        attn_out, _ = self.mha(x, x, x, mask)
++        attn_out = self.drop1(attn_out) if training else attn_out
++        out1 = self.ln1(x + attn_out)
++        ffn_out = self.ffn(out1)
++        ffn_out = self.drop2(ffn_out) if training else ffn_out
++        return self.ln2(out1 + ffn_out)
++
++
++class Encoder(nn.Module):
++    def __init__(self, num_layers, d_model, num_heads, dff, max_pos, dropout=0.1):
++        super().__init__()
++        self.layers = nn.ModuleList(
++            [EncoderLayer(d_model, num_heads, dff, dropout) for _ in range(num_layers)]
++        )
++
++    def forward(self, x, training=True, mask=None):
++        out = x
++        for layer in self.layers:
++            out = layer(out, training, mask)
++        return out
++
++
++class DecoderLayer(nn.Module):
++    def __init__(self, d_model, num_heads, dff, dropout=0.1):
++        super().__init__()
++        self.mha1 = MultiHeadAttention(d_model, num_heads)
++        self.mha2 = MultiHeadAttention(d_model, num_heads)
++        self.ffn = FeedForward(d_model, dff)
++        self.ln1 = nn.LayerNorm(d_model)
++        self.ln2 = nn.LayerNorm(d_model)
++        self.ln3 = nn.LayerNorm(d_model)
++        self.drop1 = nn.Dropout(dropout)
++        self.drop2 = nn.Dropout(dropout)
++        self.drop3 = nn.Dropout(dropout)
++
++    def forward(self, x, enc_out, training=True, look_ahead_mask=None, padding_mask=None):
++        attn1, _ = self.mha1(x, x, x, look_ahead_mask)
++        attn1 = self.drop1(attn1) if training else attn1
++        out1 = self.ln1(x + attn1)
++
++        attn2, cross_attn_w = self.mha2(out1, enc_out, enc_out, padding_mask)
++        attn2 = self.drop2(attn2) if training else attn2
++        out2 = self.ln2(out1 + attn2)
++
++        ffn_out = self.ffn(out2)
++        ffn_out = self.drop3(ffn_out) if training else ffn_out
++        out3 = self.ln3(out2 + ffn_out)
++
++        cross_attn_avg = cross_attn_w.mean(dim=1)
++        return out3, cross_attn_avg
++
++
++class Decoder_Sum(nn.Module):
++    def __init__(self, num_layers, d_model, num_heads, dff, max_len_out, dropout=0.1):
++        super().__init__()
++        self.layers = nn.ModuleList(
++            [DecoderLayer(d_model, num_heads, dff, dropout) for _ in range(num_layers)]
++        )
++        self.ln_final = nn.LayerNorm(d_model)
++
++    def forward(self, x, enc_out, training=True, look_ahead_mask=None, padding_mask=None):
++        out = x
++        last_cross_attn = None
++        for layer in self.layers:
++            out, cross_attn = layer(out, enc_out, training, look_ahead_mask, padding_mask)
++            last_cross_attn = cross_attn
++        out = self.ln_final(out)
++        return out, last_cross_attn
++
++
++# ----------------- Copy Gate -----------------
++class CopyGate(nn.Module):
++    def __init__(self, d_model):
++        super().__init__()
++        self.linear = nn.Linear(d_model * 3, 1, bias=True)
++
++    def forward(self, dec_hidden, context, input_emb):
++        gate_input = torch.cat([dec_hidden, context, input_emb], dim=-1)
++        return torch.sigmoid(self.linear(gate_input))
++
++
++# ----------------- MMoE -----------------
++class MMoE(nn.Module):
++    def __init__(self, input_dim, num_experts=4, expert_hidden=None, num_tasks=2,
++                 gate_hidden=None, dropout=0.0, use_residual=True,
++                 gate_temperature=1.0, residual_scale=0.1):
++        super().__init__()
++        self.num_tasks = num_tasks
++        self.gate_temperature = gate_temperature
++        self.use_residual = use_residual
++        self.residual_scale = residual_scale
++
++        if expert_hidden is None: expert_hidden = input_dim * 4
++        if gate_hidden is None:   gate_hidden   = max(input_dim // 4, 32)
++
++        self.experts = nn.ModuleList([
++            nn.Sequential(
++                nn.Linear(input_dim, expert_hidden), nn.ReLU(),
++                nn.Dropout(dropout), nn.Linear(expert_hidden, input_dim),
++            ) for _ in range(num_experts)
++        ])
++        self.gates = nn.ModuleList([
++            nn.Sequential(
++                nn.Linear(input_dim, gate_hidden), nn.ReLU(),
++                nn.Linear(gate_hidden, num_experts),
++            ) for _ in range(num_tasks)
++        ])
++        self.output_ln = nn.ModuleList([nn.LayerNorm(input_dim) for _ in range(num_tasks)])
++
++    def forward(self, x, mask=None, return_gates=False):
++        if mask is not None:
++            maskf = mask.float().unsqueeze(-1)
++            pooled = (x * maskf).sum(dim=1) / maskf.sum(dim=1).clamp(min=1.0)
++        else:
++            pooled = x.mean(dim=1)
++
++        expert_stack = torch.cat([e(x).unsqueeze(2) for e in self.experts], dim=2)
++
++        task_outputs = []
++        gate_probs_list = []
++        for t in range(self.num_tasks):
++            gate_logits = self.gates[t](pooled) / self.gate_temperature
++            gate_probs = F.softmax(gate_logits, dim=-1)
++            gate_probs_list.append(gate_probs)
++            gw = gate_probs.unsqueeze(1).unsqueeze(-1)
++            weighted = (expert_stack * gw).sum(dim=2)
++            if self.use_residual:
++                weighted = weighted + self.residual_scale * x
++            task_outputs.append(self.output_ln[t](weighted))
++
++        if return_gates:
++            return task_outputs, gate_probs_list
++        return task_outputs
++
++
++# ----------------- Main Model -----------------
++class TransformerMTL(nn.Module):
++    def __init__(
++        self,
++        num_layers=4, d_model=512, num_heads=8, dff=2048,
++        max_len_in=1024, max_len_out=128, dropout=0.1,
++        emb_matrix=None, word2idx=None, idx2word=None,
++        freeze_embeddings=False, num_key_labels=5,
++        mmoe_num_experts=4, mmoe_expert_hidden=None,
++        mmoe_gate_hidden=None, pad_idx=0,
++        mmoe_dropout=0.0, mmoe_use_residual=True,
++        mmoe_gate_temperature=1.0, mmoe_residual_scale=0.1,
++        use_mmoe=True,
++        use_copy=True,
++        use_ontokg=False,        # OntoKG: bật tích hợp đồ thị tri thức
++        kg_in_dim=768,           # chiều embedding entity (từ Module 7)
++        kg_num_relations=9,      # số loại quan hệ ngữ nghĩa
++    ):
++        super().__init__()
++        if word2idx is None or idx2word is None:
++            raise ValueError("TransformerMTL yêu cầu word2idx và idx2word.")
++
++        self.word2idx   = word2idx
++        self.idx2word   = idx2word
++        self.vocab_size = len(idx2word)
++        self.pad_idx    = int(self.word2idx.get("<pad>", pad_idx))
++        self.cls_idx    = self.word2idx.get("<sos>", None)
++        self.sep_idx    = self.word2idx.get("<eos>", None)
++        self.max_len_out = max_len_out
++        self.use_mmoe   = use_mmoe
++        self.use_copy   = use_copy
++        self.d_model    = d_model
++
++        # 1. Embeddings
++        self.embedding = nn.Embedding(self.vocab_size, d_model, padding_idx=self.pad_idx)
++        if emb_matrix is not None:
++            if isinstance(emb_matrix, np.ndarray):
++                emb_tensor = torch.from_numpy(emb_matrix).float()
++            else:
++                emb_tensor = emb_matrix
++            if emb_tensor.size(1) != d_model:
++                raise ValueError(f"emb_matrix dim ({emb_tensor.size(1)}) != d_model ({d_model})")
++            self.embedding.weight.data.copy_(emb_tensor)
++            print(f"Model: Loaded embedding matrix with shape {emb_tensor.shape}")
++        if freeze_embeddings:
++            self.embedding.weight.requires_grad = False
++            print("Model: Embeddings are frozen.")
++
++        self.pos_encoding = PositionalEncoding(d_model, dropout, max_len=max_len_in)
++
++        # 2. Shared Encoder
++        self.encoder = Encoder(num_layers, d_model, num_heads, dff, max_len_in, dropout)
++
++        # 2b. OntoKG components (additive)
++        self.use_ontokg = use_ontokg
++        if use_ontokg:
++            self.graph_encoder = GraphEncoder(
++                in_dim=kg_in_dim, d_model=d_model,
++                num_relations=kg_num_relations, dropout=dropout,
++            )
++            self.gated_fusion = GatedFusion(d_model, num_heads=num_heads, dropout=dropout)
++            print("Model: OntoKG fusion ENABLED.")
++        else:
++            self.graph_encoder = None
++            self.gated_fusion  = None
++
++        # 3. MMoE
++        if self.use_mmoe:
++            self.mmoe = MMoE(
++                input_dim=d_model, num_experts=mmoe_num_experts,
++                expert_hidden=mmoe_expert_hidden, num_tasks=2,
++                gate_hidden=mmoe_gate_hidden, dropout=mmoe_dropout,
++                use_residual=mmoe_use_residual,
++                gate_temperature=mmoe_gate_temperature,
++                residual_scale=mmoe_residual_scale,
++            )
++        else:
++            self.mmoe = None
++            print("Model: MMoE DISABLED — direct encoder-decoder.")
++
++        # 4. Summary decoder
++        self.decoder_sum    = Decoder_Sum(num_layers, d_model, num_heads, dff, max_len_out, dropout)
++        self.final_sum_proj = nn.Linear(d_model, self.vocab_size)
++
++        # Copy Gate
++        if self.use_copy:
++            self.copy_gate = CopyGate(d_model)
++            print("Model: Copy mechanism ENABLED.")
++        else:
++            self.copy_gate = None
++
++        # 5. Keyphrase head (CRF)
++        self.final_key_proj = nn.Linear(d_model, num_key_labels)
++        self.crf_decoder    = CRF(num_key_labels, batch_first=True)
++
++        # Xavier init
++        for p in self.parameters():
++            if p.dim() > 1 and p.requires_grad:
++                if id(p) == id(self.embedding.weight) and emb_matrix is not None:
++                    continue
++                nn.init.xavier_uniform_(p)
++
++    # ------------------------------------------------------------------ #
++    #  OntoKG fusion helper: H_tok + gated(cross_attn(H_tok, E_kg))      #
++    # ------------------------------------------------------------------ #
++    def _apply_ontokg_fusion(self, enc_out_shared, kg_batch, device):
++        if self.use_ontokg and self.gated_fusion is not None and kg_batch is not None:
++            E_kg, kg_mask = encode_kg_batch(
++                self.graph_encoder, kg_batch, self.d_model, device
++            )
++            return self.gated_fusion(enc_out_shared, E_kg, kg_mask)
++        return enc_out_shared
++
++    # ------------------------------------------------------------------ #
++    #  Helper nội bộ: tính copy-augmented log-probs                      #
++    # ------------------------------------------------------------------ #
++    def _apply_copy(self, raw_logits, dec_out, cross_attn, tar_emb_pe, enc_out_sum, src):
++        device = raw_logits.device
++        B, T_dec, _ = raw_logits.size()
++
++        context = torch.bmm(cross_attn, enc_out_sum)
++
++        tar_trunc = tar_emb_pe[:, :T_dec, :]
++        p_gen     = self.copy_gate(dec_out, context, tar_trunc)
++
++        vocab_probs = torch.softmax(raw_logits, dim=-1)
++
++        copy_dist   = torch.zeros(B, T_dec, self.vocab_size, device=device)
++        src_safe    = src.clamp(0, self.vocab_size - 1)
++        src_expand  = src_safe.unsqueeze(1).expand(-1, T_dec, -1)
++        copy_dist.scatter_add_(2, src_expand, cross_attn)
++
++        final_probs = p_gen * vocab_probs + (1.0 - p_gen) * copy_dist
++        return torch.log(final_probs.clamp(min=1e-9))
++
++    # ------------------------------------------------------------------ #
++    #  Forward                                                            #
++    # ------------------------------------------------------------------ #
++    def forward(self, inp, tar=None, labels=None, task="both", training=True, kg_batch=None):
++        device           = inp.device
++        enc_padding_mask = (inp == self.pad_idx).to(device).unsqueeze(1).unsqueeze(2)
++
++        # 1. Encode
++        x = self.embedding(inp) * math.sqrt(self.d_model)
++        x = self.pos_encoding(x)
++        enc_out_shared = self.encoder(x, training=training, mask=enc_padding_mask)
++
++        # 1b. OntoKG fusion (chỉ khi bật + có kg_batch)
++        enc_out_shared = self._apply_ontokg_fusion(enc_out_shared, kg_batch, device)
++
++        # 2. MMoE routing
++        gate_probs = None
++        if self.use_mmoe:
++            mask_tokens            = (inp != self.pad_idx)
++            mmoe_outs, gate_probs  = self.mmoe(enc_out_shared, mask=mask_tokens, return_gates=True)
++            enc_out_sum = mmoe_outs[0]
++            enc_out_key = mmoe_outs[1]
++        else:
++            enc_out_sum = enc_out_shared
++            enc_out_key = enc_out_shared
++
++        out = {"mmoe_gate_probs": gate_probs}
++
++        # 3. Summary task
++        if task in ["sum", "both"]:
++            if tar is None:
++                out["enc_out_sum"] = enc_out_sum
++            else:
++                _, look_ahead_mask, _ = create_masks(inp, tar, self.pad_idx, device)
++                tar_emb    = self.embedding(tar) * math.sqrt(self.d_model)
++                tar_emb_pe = self.pos_encoding(tar_emb)
++
++                dec_out, cross_attn = self.decoder_sum(
++                    tar_emb_pe, enc_out_sum,
++                    training=training,
++                    look_ahead_mask=look_ahead_mask,
++                    padding_mask=enc_padding_mask,
++                )
++                raw_logits = self.final_sum_proj(dec_out)
++                out["summary_logits"] = raw_logits
++
++                if self.use_copy and cross_attn is not None:
++                    out["summary_log_probs"] = self._apply_copy(
++                        raw_logits, dec_out, cross_attn, tar_emb_pe, enc_out_sum, inp
++                    )
++
++        # 4. Keyword task (CRF)
++        if task in ["key", "both"]:
++            key_emissions          = self.final_key_proj(enc_out_key)
++            out["key_emissions"]   = key_emissions
++            mask_crf               = (inp != self.pad_idx).bool().to(device)
++            mask_crf[:, 0]         = True
++
++            if labels is not None:
++                if labels.size(1) > key_emissions.size(1):
++                    labels = labels[:, :key_emissions.size(1)]
++                labels_safe            = labels.clone()
++                labels_safe[labels_safe < 0] = 0
++                log_likelihood         = self.crf_decoder(
++                    key_emissions, labels_safe, mask=mask_crf, reduction="token_mean"
++                )
++                out["key_nll"] = -log_likelihood
++
++            if not training:
++                decoded_lists = self.crf_decoder.decode(key_emissions, mask=mask_crf)
++                max_l         = key_emissions.size(1)
++                padded        = np.zeros((len(decoded_lists), max_l), dtype=int)
++                for i, seq in enumerate(decoded_lists):
++                    if len(seq) > 0:
++                        padded[i, :len(seq)] = seq
++                out["key_decoded"] = torch.tensor(padded, device=device)
++
++        return out
++
++    # ------------------------------------------------------------------ #
++    #  Greedy auto-regressive decode                                      #
++    # ------------------------------------------------------------------ #
++    @torch.no_grad()
++    def greedy_decode_batch(self, inp, max_len=None, kg_batch=None):
++        if max_len is None:
++            max_len = self.max_len_out
++        self.eval()
++        device = inp.device
++        B      = inp.size(0)
++
++        enc_padding_mask = (inp == self.pad_idx).to(device).unsqueeze(1).unsqueeze(2)
++        x = self.embedding(inp) * math.sqrt(self.d_model)
++        x = self.pos_encoding(x)
++        enc_out_shared = self.encoder(x, training=False, mask=enc_padding_mask)
++
++        # OntoKG fusion
++        enc_out_shared = self._apply_ontokg_fusion(enc_out_shared, kg_batch, device)
++
++        if self.use_mmoe:
++            mask_tokens = (inp != self.pad_idx)
++            mmoe_outs   = self.mmoe(enc_out_shared, mask=mask_tokens, return_gates=False)
++            enc_out_sum = mmoe_outs[0]
++        else:
++            enc_out_sum = enc_out_shared
++
++        cls_token = self.cls_idx if self.cls_idx is not None else 1
++        dec_in    = torch.full((B, 1), cls_token, dtype=torch.long, device=device)
++        finished  = torch.zeros(B, dtype=torch.bool, device=device)
++
++        for _ in range(max_len - 1):
++            T          = dec_in.size(1)
++            look_ahead = (
++                torch.triu(torch.ones(T, T, device=device), diagonal=1)
++                .bool().unsqueeze(0).unsqueeze(1)
++            )
++            tar_emb    = self.embedding(dec_in) * math.sqrt(self.d_model)
++            tar_emb_pe = self.pos_encoding(tar_emb)
++
++            dec_out, cross_attn = self.decoder_sum(
++                tar_emb_pe, enc_out_sum,
++                training=False,
++                look_ahead_mask=look_ahead,
++                padding_mask=enc_padding_mask,
++            )
++
++            last_hidden = dec_out[:, -1:, :]
++            raw_logits  = self.final_sum_proj(last_hidden)
++
++            if self.use_copy and cross_attn is not None:
++                last_cross  = cross_attn[:, -1:, :]
++                context     = torch.bmm(last_cross, enc_out_sum)
++                last_emb    = tar_emb_pe[:, -1:, :]
++                p_gen       = self.copy_gate(last_hidden, context, last_emb)
++
++                vocab_probs = torch.softmax(raw_logits, dim=-1)
++                copy_dist   = torch.zeros(B, 1, self.vocab_size, device=device)
++                src_safe    = inp.clamp(0, self.vocab_size - 1).unsqueeze(1)
++                copy_dist.scatter_add_(2, src_safe, last_cross)
++
++                final_probs = p_gen * vocab_probs + (1.0 - p_gen) * copy_dist
++                next_token  = final_probs.squeeze(1).argmax(dim=-1)
++            else:
++                next_token = raw_logits.squeeze(1).argmax(dim=-1)
++
++            if self.sep_idx is not None:
++                finished = finished | (next_token == self.sep_idx)
++
++            dec_in = torch.cat([dec_in, next_token.unsqueeze(1)], dim=1)
++
++            if self.sep_idx is not None and finished.all():
++                break
++
++        results = []
++        for b in range(B):
++            seq = dec_in[b, 1:].cpu().tolist()
++            if self.sep_idx is not None and self.sep_idx in seq:
++                seq = seq[: seq.index(self.sep_idx)]
++            results.append(seq)
++        return results
++
++    # ------------------------------------------------------------------ #
++    #  Beam Search với copy mechanism                                     #
++    # ------------------------------------------------------------------ #
++    @torch.no_grad()
++    def beam_search_generate_batch(self, inp, max_len, beam_size=4, len_penalty=0.6,
++                                   n_gram_block=3, kg_batch=None):
++        self.eval()
++        device     = inp.device
++        batch_size = inp.size(0)
++
++        enc_padding_mask = (inp == self.pad_idx).to(device).unsqueeze(1).unsqueeze(2)
++        x = self.embedding(inp) * math.sqrt(self.d_model)
++        x = self.pos_encoding(x)
++        enc_out_shared = self.encoder(x, training=False, mask=enc_padding_mask)
++
++        # OntoKG fusion
++        enc_out_shared = self._apply_ontokg_fusion(enc_out_shared, kg_batch, device)
++
++        if self.use_mmoe:
++            mask_tokens = (inp != self.pad_idx)
++            mmoe_outs   = self.mmoe(enc_out_shared, mask=mask_tokens, return_gates=False)
++            enc_out_sum = mmoe_outs[0]
++        else:
++            enc_out_sum = enc_out_shared
++
++        enc_out_exp      = enc_out_sum.repeat_interleave(beam_size, dim=0)
++        enc_pad_mask_exp = enc_padding_mask.repeat_interleave(beam_size, dim=0)
++        src_exp          = inp.repeat_interleave(beam_size, dim=0)
++
++        cls_token     = self.cls_idx if self.cls_idx is not None else 1
++        decoder_input = torch.full(
++            (batch_size * beam_size, 1), cls_token, dtype=torch.long, device=device
++        )
++        beam_scores = torch.zeros((batch_size, beam_size), dtype=torch.float, device=device)
++        beam_scores[:, 1:] = -1e9
++        beam_scores = beam_scores.view(-1)
++        done = [False] * (batch_size * beam_size)
++
++        for step in range(max_len):
++            T = decoder_input.size(1)
++            look_ahead = (
++                torch.triu(torch.ones(T, T, device=device), diagonal=1)
++                .bool().unsqueeze(0).unsqueeze(1)
++            )
++            tar_emb    = self.embedding(decoder_input) * math.sqrt(self.d_model)
++            tar_emb_pe = self.pos_encoding(tar_emb)
++
++            dec_out, cross_attn = self.decoder_sum(
++                tar_emb_pe, enc_out_exp,
++                training=False,
++                look_ahead_mask=look_ahead,
++                padding_mask=enc_pad_mask_exp,
++            )
++
++            last_hidden = dec_out[:, -1:, :]
++            raw_logits  = self.final_sum_proj(last_hidden)
++
++            if self.use_copy and cross_attn is not None:
++                last_cross = cross_attn[:, -1:, :]
++                context    = torch.bmm(last_cross, enc_out_exp)
++                last_emb   = tar_emb_pe[:, -1:, :]
++                p_gen      = self.copy_gate(last_hidden, context, last_emb)
++
++                vocab_probs = torch.softmax(raw_logits, dim=-1)
++                Bb = batch_size * beam_size
++                copy_dist = torch.zeros(Bb, 1, self.vocab_size, device=device)
++                src_safe  = src_exp.clamp(0, self.vocab_size - 1).unsqueeze(1)
++                copy_dist.scatter_add_(2, src_safe, last_cross)
++
++                final_probs = p_gen * vocab_probs + (1.0 - p_gen) * copy_dist
++                log_probs   = torch.log(final_probs.clamp(min=1e-9)).squeeze(1)
++            else:
++                log_probs = F.log_softmax(raw_logits.squeeze(1), dim=-1)
++
++            if n_gram_block > 0 and T >= n_gram_block:
++                cur_seqs = decoder_input.cpu().numpy()
++                for idx in range(batch_size * beam_size):
++                    if done[idx]: continue
++                    seq        = cur_seqs[idx].tolist()
++                    cur_prefix = tuple(seq[-(n_gram_block - 1):])
++                    for i in range(len(seq) - n_gram_block + 1):
++                        if tuple(seq[i: i + n_gram_block - 1]) == cur_prefix:
++                            log_probs[idx, seq[i + n_gram_block - 1]] = -float("inf")
++
++            next_scores = (beam_scores.unsqueeze(-1) + log_probs).view(
++                batch_size, beam_size * self.vocab_size
++            )
++            top_scores, top_indices = torch.topk(next_scores, beam_size, dim=1)
++
++            beam_indices  = top_indices // self.vocab_size
++            token_indices = top_indices % self.vocab_size
++            batch_offset  = (torch.arange(batch_size, device=device) * beam_size).unsqueeze(1)
++            global_beam   = (batch_offset + beam_indices).view(-1)
++
++            decoder_input = torch.cat([decoder_input[global_beam], token_indices.view(-1, 1)], dim=1)
++            beam_scores   = top_scores.view(-1)
++
++            prior_done = [done[i] for i in global_beam.cpu().numpy()]
++            just_done  = (token_indices.view(-1) == self.sep_idx).cpu().numpy()
++            done       = [p or j for p, j in zip(prior_done, just_done)]
++            if all(done):
++                break
++
++        final_sequences = decoder_input.view(batch_size, beam_size, -1)
++        final_scores    = beam_scores.view(batch_size, beam_size)
++        lengths         = (final_sequences != self.pad_idx).sum(dim=2).float()
++        scores_pen      = final_scores / (lengths ** len_penalty + 1e-8)
++        best_idx        = scores_pen.argmax(dim=1)
++
+         return [final_sequences[b, best_idx[b]].cpu().numpy() for b in range(batch_size)]
+\ No newline at end of file
+diff --git a/preprocessing.py b/transmtl/preprocessing.py
+similarity index 94%
+rename from preprocessing.py
+rename to transmtl/preprocessing.py
+index f032e61..af22d6f 100644
+--- a/preprocessing.py
++++ b/transmtl/preprocessing.py
+@@ -321,7 +321,7 @@ def convert_tags_to_keyphrases(tag_seq: List[int], token_words: List[str]) -> Li
+             if cur: cur.append(word); kws.append(" ".join(cur)); cur = []
+             else: kws.append(word); cur = []
+     if cur: kws.append(" ".join(cur))
+-    
++
+     out = []
+     for k in kws:
+         kk = " ".join(k.strip().split()).lower()
+@@ -331,16 +331,6 @@ def convert_tags_to_keyphrases(tag_seq: List[int], token_words: List[str]) -> Li
+         if x not in seen: final.append(x); seen.add(x)
+     return final
+ 
+-def evaluate_keyphrase_lists(preds: List[List[str]], golds: List[List[str]]):
+-    match = 0; pred_count = 0; gold_count = 0
+-    for p, g in zip(preds, golds):
+-        pset = set([x.strip().lower() for x in p])
+-        gset = set([x.strip().lower() for x in g])
+-        pred_count += len(pset)
+-        gold_count += len(gset)
+-        match += len(pset & gset)
+-    precision = match / pred_count if pred_count > 0 else 0.0
+-    recall = match / gold_count if gold_count > 0 else 0.0
+-    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+-    return {"Precision": precision, "Recall": recall, "F1-score": f1}
++# Lưu ý: evaluate_keyphrase_lists() đã được gỡ khỏi đây (bản trùng, không dùng).
++# Dùng bản chính thức trong transmtl/evaluation.py.
+ 
+diff --git a/testing_v2.py b/transmtl/tester.py
+similarity index 97%
+rename from testing_v2.py
+rename to transmtl/tester.py
+index 3f359e2..3004463 100644
+--- a/testing_v2.py
++++ b/transmtl/tester.py
+@@ -5,19 +5,19 @@ import numpy as np
+ import torch
+ from rouge_score import rouge_scorer
+ 
+-from data_utils import get_loaders, subword_labels_to_word_labels
++from .data import get_loaders, subword_labels_to_word_labels
+ # FIX: đổi TransMTL_v2 → TransMTL
+-from TransMTL_v2 import TransformerMTL
+-from preprocessing import load_fasttext_bin_embeddings, seed_everything, ids_to_text, convert_tags_to_keyphrases
++from .model import TransformerMTL
++from .preprocessing import load_fasttext_bin_embeddings, seed_everything, ids_to_text, convert_tags_to_keyphrases
+ # FIX: đổi utils_v2 → utils  +  thêm compute_summary_loss_from_logprobs
+-from utils_v2 import (
++from .losses import (
+     compute_summary_loss_from_logits,
+     compute_summary_loss_from_logprobs,   # FIX 4: cần cho copy mechanism
+     subword_labels_to_word_labels_fallback,
+     load_checkpoint_state,
+     ensure_decoder_sos,
+ )
+-from ontokg_data_bridge import OntoKGBridge   # OntoKG: truy vấn Neo4j khi test
++from .bridge import OntoKGBridge   # OntoKG: truy vấn Neo4j khi test
+ 
+ seed_everything(42)
+ logging.basicConfig(level=logging.INFO)
+@@ -281,7 +281,7 @@ def run_test(path_weight, data_path, len_in, len_out, num_workers, batch_size, d
+     rouge2 = float(np.mean(rouge2_list)) if rouge2_list else 0.0
+     rougel = float(np.mean(rougel_list)) if rougel_list else 0.0
+ 
+-    from evaluation import evaluate_keyphrase_lists
++    from .evaluation import evaluate_keyphrase_lists
+     key_metrics  = evaluate_keyphrase_lists(all_pred_kws, all_gold_kws)
+     avg_sum_loss = total_sum_loss / n_samples if n_samples > 0 else 0.0
+     avg_key_loss = total_key_loss / n_samples if n_samples > 0 else 0.0
+diff --git a/train_v2.py b/transmtl/train.py
+similarity index 98%
+rename from train_v2.py
+rename to transmtl/train.py
+index 2dc2477..d6bd45b 100644
+--- a/train_v2.py
++++ b/transmtl/train.py
+@@ -7,12 +7,12 @@ import torch
+ import torch.nn as nn
+ from torch.optim import AdamW
+ from rouge_score import rouge_scorer
+-from data_utils import get_loaders
+-from TransMTL_v2 import TransformerMTL
+-from preprocessing import load_fasttext_bin_embeddings, seed_everything, convert_tags_to_keyphrases
+-from evaluation import evaluate_keyphrase_lists
+-from ontokg_data_bridge import OntoKGBridge   # NEW: cầu nối OntoKG/Neo4j
+-from utils_v2 import (
++from .data import get_loaders
++from .model import TransformerMTL
++from .preprocessing import load_fasttext_bin_embeddings, seed_everything, convert_tags_to_keyphrases
++from .evaluation import evaluate_keyphrase_lists
++from .bridge import OntoKGBridge   # NEW: cầu nối OntoKG/Neo4j
++from .losses import (
+     compute_summary_loss_from_logits,
+     compute_summary_loss_from_logprobs,
+     compute_key_loss_from_raw,
+@@ -208,7 +208,7 @@ def validate(
+     all_gold_kws  = []
+     scorer        = rouge_scorer.RougeScorer(["rouge1"], use_stemmer=False)
+     try:
+-        from data_utils import subword_labels_to_word_labels
++        from .data import subword_labels_to_word_labels
+     except Exception:
+         subword_labels_to_word_labels = None
+     use_fallback = (subword_labels_to_word_labels is None) or use_fallback_mapper
+-- 
+2.43.0
+

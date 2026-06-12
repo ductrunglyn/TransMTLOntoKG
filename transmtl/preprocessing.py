@@ -321,7 +321,7 @@ def convert_tags_to_keyphrases(tag_seq: List[int], token_words: List[str]) -> Li
             if cur: cur.append(word); kws.append(" ".join(cur)); cur = []
             else: kws.append(word); cur = []
     if cur: kws.append(" ".join(cur))
-    
+
     out = []
     for k in kws:
         kk = " ".join(k.strip().split()).lower()
@@ -331,16 +331,6 @@ def convert_tags_to_keyphrases(tag_seq: List[int], token_words: List[str]) -> Li
         if x not in seen: final.append(x); seen.add(x)
     return final
 
-def evaluate_keyphrase_lists(preds: List[List[str]], golds: List[List[str]]):
-    match = 0; pred_count = 0; gold_count = 0
-    for p, g in zip(preds, golds):
-        pset = set([x.strip().lower() for x in p])
-        gset = set([x.strip().lower() for x in g])
-        pred_count += len(pset)
-        gold_count += len(gset)
-        match += len(pset & gset)
-    precision = match / pred_count if pred_count > 0 else 0.0
-    recall = match / gold_count if gold_count > 0 else 0.0
-    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
-    return {"Precision": precision, "Recall": recall, "F1-score": f1}
+# Lưu ý: evaluate_keyphrase_lists() đã được gỡ khỏi đây (bản trùng, không dùng).
+# Dùng bản chính thức trong transmtl/evaluation.py.
 

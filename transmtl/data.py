@@ -9,7 +9,7 @@ from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence
 from tokenizers import ByteLevelBPETokenizer
 from conf import IGNORE_INDEX, LABELS, LEN_IN, LEN_OUT, PAD_IDX
-from preprocessing import *
+from .preprocessing import *
 logger = logging.getLogger("data_utils")
 logger.setLevel(logging.INFO)
 # -------------------------

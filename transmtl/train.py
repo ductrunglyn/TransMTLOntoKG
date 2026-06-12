@@ -7,12 +7,12 @@ import torch
 import torch.nn as nn
 from torch.optim import AdamW
 from rouge_score import rouge_scorer
-from data_utils import get_loaders
-from TransMTL_v2 import TransformerMTL
-from preprocessing import load_fasttext_bin_embeddings, seed_everything, convert_tags_to_keyphrases
-from evaluation import evaluate_keyphrase_lists
-from ontokg_data_bridge import OntoKGBridge   # NEW: cầu nối OntoKG/Neo4j
-from utils_v2 import (
+from .data import get_loaders
+from .model import TransformerMTL
+from .preprocessing import load_fasttext_bin_embeddings, seed_everything, convert_tags_to_keyphrases
+from .evaluation import evaluate_keyphrase_lists
+from .bridge import OntoKGBridge   # NEW: cầu nối OntoKG/Neo4j
+from .losses import (
     compute_summary_loss_from_logits,
     compute_summary_loss_from_logprobs,
     compute_key_loss_from_raw,
@@ -208,7 +208,7 @@ def validate(
     all_gold_kws  = []
     scorer        = rouge_scorer.RougeScorer(["rouge1"], use_stemmer=False)
     try:
-        from data_utils import subword_labels_to_word_labels
+        from .data import subword_labels_to_word_labels
     except Exception:
         subword_labels_to_word_labels = None
     use_fallback = (subword_labels_to_word_labels is None) or use_fallback_mapper

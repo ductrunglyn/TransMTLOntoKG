@@ -5,19 +5,19 @@ import numpy as np
 import torch
 from rouge_score import rouge_scorer
 
-from data_utils import get_loaders, subword_labels_to_word_labels
+from .data import get_loaders, subword_labels_to_word_labels
 # FIX: đổi TransMTL_v2 → TransMTL
-from TransMTL_v2 import TransformerMTL
-from preprocessing import load_fasttext_bin_embeddings, seed_everything, ids_to_text, convert_tags_to_keyphrases
+from .model import TransformerMTL
+from .preprocessing import load_fasttext_bin_embeddings, seed_everything, ids_to_text, convert_tags_to_keyphrases
 # FIX: đổi utils_v2 → utils  +  thêm compute_summary_loss_from_logprobs
-from utils_v2 import (
+from .losses import (
     compute_summary_loss_from_logits,
     compute_summary_loss_from_logprobs,   # FIX 4: cần cho copy mechanism
     subword_labels_to_word_labels_fallback,
     load_checkpoint_state,
     ensure_decoder_sos,
 )
-from ontokg_data_bridge import OntoKGBridge   # OntoKG: truy vấn Neo4j khi test
+from .bridge import OntoKGBridge   # OntoKG: truy vấn Neo4j khi test
 
 seed_everything(42)
 logging.basicConfig(level=logging.INFO)
@@ -281,7 +281,7 @@ def run_test(path_weight, data_path, len_in, len_out, num_workers, batch_size, d
     rouge2 = float(np.mean(rouge2_list)) if rouge2_list else 0.0
     rougel = float(np.mean(rougel_list)) if rougel_list else 0.0
 
-    from evaluation import evaluate_keyphrase_lists
+    from .evaluation import evaluate_keyphrase_lists
     key_metrics  = evaluate_keyphrase_lists(all_pred_kws, all_gold_kws)
     avg_sum_loss = total_sum_loss / n_samples if n_samples > 0 else 0.0
     avg_key_loss = total_key_loss / n_samples if n_samples > 0 else 0.0

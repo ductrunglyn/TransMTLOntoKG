@@ -130,7 +130,7 @@ def _ontokg_kwargs(args):
 def stage_train(args):
     tag = "(+OntoKG)" if args.use_ontokg else "(baseline)"
     print("\n" + "=" * 64 + f"\n[C] TRAIN TransMTL {tag}\n" + "=" * 64)
-    from train_v2 import train_model
+    from transmtl.train import train_model
 
     train_model(
         args.P.TRAIN_DATA_CSV, args.save_path, cfg.PAD_IDX, cfg.LABEL_SMOOTHING,
@@ -151,7 +151,7 @@ def stage_train(args):
 # ──────────────────────────────────────────────────────────
 def stage_test(args):
     print("\n" + "=" * 64 + "\n[D] TEST OFFLINE (batch)\n" + "=" * 64)
-    from testing_v2 import run_test
+    from transmtl.tester import run_test
 
     if not os.path.exists(args.save_path):
         print(f"!!! Chưa có checkpoint {args.save_path}. Hãy train trước.")

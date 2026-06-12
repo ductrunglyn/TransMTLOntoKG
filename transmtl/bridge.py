@@ -3,9 +3,9 @@
 Cau noi giua dataset TransMTL va OntoKG (Neo4j).
 Mat xich con thieu de tich hop: tu article_id -> truy van Neo4j -> kg_batch.
 
-Cach dung trong train_v2.py / testing_v2.py:
+Cach dung trong transmtl/train.py / transmtl/tester.py:
 
-    from ontokg_data_bridge import OntoKGBridge
+    from transmtl.bridge import OntoKGBridge
 
     bridge = OntoKGBridge(
         uri="bolt://localhost:7687", user="neo4j", password="password",
